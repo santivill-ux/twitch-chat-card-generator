@@ -8,6 +8,7 @@ describe("reference layout",()=>{
     expect(layout.backWidth).toBe(412); expect(layout.backHeight).toBe(89);
     expect(chat.back.offsetX).toBe(16); expect(chat.back.offsetY).toBe(20);
     expect(chat.front.backgroundColor).toBe("#19171C"); expect(chat.back.backgroundColor).toBe("#70AFFF");
+    expect(chat.back.fillMode).toBe("solid"); expect(chat.content.fontFamily).toBe("Roobert");
   });
   it("grows and wraps long messages in auto size",()=>{
     const chat=createMessage(); chat.message="one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen";chat.front.maxWidth=420;chat.content.messageMaxWidth=350;
@@ -24,6 +25,6 @@ describe("styles and project state",()=>{
     const source=applyPreset(createMessage(),"Big Creator"); const target=createMessage(1);target.username="Keep Me";target.message="Keep this text";target.transform.x=77;
     const result=pasteStyle(target,copyStyle(source));expect(result.username).toBe("Keep Me");expect(result.message).toBe("Keep this text");expect(result.transform.x).toBe(77);expect(result.front.borderRadius).toBe(36);
   });
-  it("creates a versioned local project",()=>{const project=createProject();expect(project.version).toBe(1);expect(project.messages).toHaveLength(1);expect(project.selectedId).toBe(project.messages[0].id);});
+  it("creates a versioned local project",()=>{const project=createProject();expect(project.version).toBe(2);expect(project.messages).toHaveLength(1);expect(project.selectedId).toBe(project.messages[0].id);expect(project.canvas.previewBackgroundPreset).toBe("white");expect(project.export.scale).toBe(4);});
   it("generates readable username colors",()=>{for(let i=0;i<30;i++)expect(contrastRatio(randomUsernameColor("#19171C"),"#19171C")).toBeGreaterThanOrEqual(4.5);});
 });

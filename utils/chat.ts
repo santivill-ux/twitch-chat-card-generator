@@ -1,12 +1,12 @@
 import type { BackCardStyle, BadgeType, ChatLayout, ChatMessage, ChatProject, FrontCardStyle, StyleClipboard } from "../types/chat";
 
-export const STORAGE_KEY = "twitch-chat-card-generator:v1";
+export const STORAGE_KEY = "twitch-chat-card-generator:v2";
 export const USERNAME_COLORS = ["#FF7A7A", "#FFB86C", "#FFD866", "#A8E063", "#50FA7B", "#4DD0E1", "#5C9DFF", "#7A7CFF", "#BD93F9", "#FF79C6", "#FF4FA3"];
 export const BACK_COLORS = ["#70AFFF", "#72E4C0", "#FF8FB8", "#B792FF", "#FFB866", "#68D7F2", "#9EE56B", "#F48BFF"];
-export const BADGE_META: Record<BadgeType, { short: string; color: string }> = {
-  Broadcaster:{short:"BC",color:"#E91916"}, Moderator:{short:"M",color:"#00AD78"}, VIP:{short:"VIP",color:"#E005B9"},
-  Subscriber:{short:"SUB",color:"#8B5CF6"}, Founder:{short:"F",color:"#F59E0B"}, Prime:{short:"P",color:"#1597E5"},
-  Turbo:{short:"T",color:"#A970FF"}, Artist:{short:"A",color:"#F43F5E"}, Staff:{short:"S",color:"#111827"}, Custom:{short:"★",color:"#64748B"},
+export const BADGE_META: Record<BadgeType, { short: string; color: string; asset?: string }> = {
+  Broadcaster:{short:"BC",color:"#E91916",asset:"/badges/broadcaster.png"}, Moderator:{short:"M",color:"#00AD78",asset:"/badges/moderator.png"}, VIP:{short:"VIP",color:"#E005B9",asset:"/badges/vip.png"},
+  Subscriber:{short:"SUB",color:"#8B5CF6",asset:"/badges/subscriber.png"}, Founder:{short:"F",color:"#F59E0B",asset:"/badges/founder.png"}, Prime:{short:"P",color:"#1597E5",asset:"/badges/prime.png"},
+  Turbo:{short:"T",color:"#A970FF",asset:"/badges/turbo.png"}, Artist:{short:"A",color:"#F43F5E",asset:"/badges/artist.png"}, Staff:{short:"S",color:"#111827",asset:"/badges/staff.png"}, TikTok:{short:"♪",color:"#000000"}, Custom:{short:"★",color:"#64748B"},
 };
 
 export const uid = () => typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -18,21 +18,21 @@ export function referenceFront(): FrontCardStyle {
     border:{enabled:false,color:"#FFFFFF",thickness:1}, shadow:{enabled:false,blur:18,opacity:.22,x:0,y:10} };
 }
 export function referenceBack(): BackCardStyle {
-  return { backgroundColor:"#70AFFF", opacity:1, offsetX:16, offsetY:20, matchFrontSize:true, width:412, height:89, widthAdjustment:0, heightAdjustment:0,
+  return { backgroundColor:"#70AFFF", opacity:1, offsetX:16, offsetY:20, fillMode:"solid", gradientType:"linear", gradientStart:"#70AFFF", gradientEnd:"#A970FF", gradientAccent:"#50FA7B", gradientAccent2:"#FF79C6", gradientAngle:135, matchFrontSize:true, width:412, height:89, widthAdjustment:0, heightAdjustment:0,
     borderRadius:24, linkBorderRadius:true, scaleX:1, scaleY:1, border:{enabled:true,color:"#19171C",thickness:1}, shadow:{enabled:false,blur:14,opacity:.16,x:0,y:8} };
 }
 
 export function createMessage(index = 0, randomUsername = false): ChatMessage {
-  return { id:uid(), username:index ? `Viewer${index + 1}` : "Lorem Ipsum", message:index ? "That play was actually unreal" : "pq el mohammad esta en tu clan we", visible:true,
+  return { id:uid(), username:index ? `Viewer${index + 1}` : "", message:index ? "That play was actually unreal" : "", visible:true,
     front:referenceFront(), back:referenceBack(),
-    content:{layout:"stacked",usernameColor:randomUsername ? randomUsernameColor("#19171C") : "#F4F4F4",usernameColorMode:randomUsername ? "random":"manual",messageColor:"#F4F4F4",usernameFontSize:22,messageFontSize:16,usernameWeight:700,messageWeight:400,lineHeight:1.25,messageMaxWidth:680,textAlign:"left",badgeUsernameSpacing:8,usernameMessageSpacing:3},
-    badges:[], badgeSettings:{size:18,spacing:5}, transform:{x:754,y:485 + index * 130,scale:1,rotation:0} };
+    content:{layout:"stacked",usernameColor:randomUsername ? randomUsernameColor("#19171C") : "#F4F4F4",usernameColorMode:randomUsername ? "random":"manual",messageColor:"#F4F4F4",usernameFontSize:22,messageFontSize:16,usernameWeight:700,messageWeight:400,lineHeight:1.25,messageMaxWidth:680,textAlign:"left",badgeUsernameSpacing:8,usernameMessageSpacing:3,fontFamily:"Roobert"},
+    badges:index?[]:[{id:uid(),type:"Broadcaster",label:"Broadcaster",visible:true},{id:uid(),type:"TikTok",label:"TikTok",visible:true}], badgeSettings:{size:18,spacing:5}, transform:{x:960,y:540 + index * 130,scale:1,rotation:0} };
 }
 
 export function createProject(): ChatProject {
   const message = createMessage();
-  return {version:1,canvas:{orientation:"horizontal",width:1920,height:1080,randomizeOnNew:false},messages:[message],selectedId:message.id,
-    randomize:{usernameColor:true,backCardColor:true,cardOffset:true,borderRadius:true},export:{mode:"message",padding:20,scale:2},styleClipboard:null};
+  return {version:2,canvas:{orientation:"horizontal",width:1920,height:1080,randomizeOnNew:false,previewMode:"message",previewBackgroundColor:"#FFFFFF",previewBackgroundPreset:"white",previewPadding:64},messages:[message],selectedId:message.id,
+    randomize:{usernameColor:true,backCardColor:true,cardOffset:true,borderRadius:true},export:{mode:"message",padding:20,scale:4},styleClipboard:null};
 }
 
 export function loadProject(): ChatProject {
@@ -40,8 +40,10 @@ export function loadProject(): ChatProject {
   try {
     const saved = localStorage.getItem(STORAGE_KEY); if (!saved) return createProject();
     const parsed = JSON.parse(saved) as ChatProject;
-    if (parsed.version !== 1 || !Array.isArray(parsed.messages) || !parsed.messages.length) return createProject();
-    return parsed;
+    if (parsed.version !== 2 || !Array.isArray(parsed.messages) || !parsed.messages.length) return createProject();
+    const defaults=createProject(); const baseMessage=createMessage();
+    const legacyCanvas=parsed.canvas as ChatProject["canvas"] & {previewBackgroundEnabled?:boolean};
+    return {...defaults,...parsed,canvas:{...defaults.canvas,...parsed.canvas,previewBackgroundPreset:legacyCanvas.previewBackgroundPreset??(legacyCanvas.previewBackgroundEnabled===false?"transparent":"white")},export:{...defaults.export,...parsed.export,scale:4},messages:parsed.messages.map(message=>({...message,back:{...referenceBack(),...message.back},content:{...baseMessage.content,...message.content,fontFamily:message.content?.fontFamily??"Roobert"}}))};
   } catch { return createProject(); }
 }
 
@@ -60,18 +62,19 @@ export function wrappedLineCount(text:string,maxWidth:number,fontSize:number,wei
 }
 
 export function calculateLayout(chat:ChatMessage): ChatLayout {
+  const displayUsername=chat.username||"SoySanwich"; const displayMessage=chat.message||"Ingresa lo que quieras decir";
   const visibleBadges=chat.badges.filter(b=>b.visible).length;
   const badgesWidth=visibleBadges ? visibleBadges*chat.badgeSettings.size+(visibleBadges-1)*chat.badgeSettings.spacing : 0;
   const badgeLead=visibleBadges ? badgesWidth+chat.content.badgeUsernameSpacing : 0;
-  const usernameWidth=measureText(chat.username,chat.content.usernameFontSize,chat.content.usernameWeight);
+  const usernameWidth=measureText(displayUsername,chat.content.usernameFontSize,chat.content.usernameWeight);
   const headerHeight=Math.max(visibleBadges?chat.badgeSettings.size:0,chat.content.usernameFontSize*1.15);
-  const messageNatural=measureText(chat.message,chat.content.messageFontSize,chat.content.messageWeight);
+  const messageNatural=measureText(displayMessage,chat.content.messageFontSize,chat.content.messageWeight);
   const desiredContent=chat.content.layout==="stacked" ? Math.max(badgeLead+usernameWidth,Math.min(messageNatural,chat.content.messageMaxWidth)) : badgeLead+usernameWidth+measureText(": ",chat.content.usernameFontSize,chat.content.usernameWeight)+Math.min(messageNatural,chat.content.messageMaxWidth);
   const autoWidth=clamp(desiredContent+chat.front.paddingX*2,chat.front.minWidth,chat.front.maxWidth);
   const width=chat.front.autoSize?autoWidth:chat.front.width; const contentWidth=Math.max(20,width-chat.front.paddingX*2);
   const inlineLead=chat.content.layout==="inline"?badgeLead+usernameWidth+measureText(": ",chat.content.usernameFontSize,chat.content.usernameWeight):0;
   const messageWidth=Math.max(20,Math.min(chat.content.messageMaxWidth,contentWidth-inlineLead));
-  const messageLines=wrappedLineCount(chat.message,messageWidth,chat.content.messageFontSize,chat.content.messageWeight);
+  const messageLines=wrappedLineCount(displayMessage,messageWidth,chat.content.messageFontSize,chat.content.messageWeight);
   const messageHeight=messageLines*chat.content.messageFontSize*chat.content.lineHeight;
   const naturalHeight=chat.front.paddingY*2+(chat.content.layout==="stacked"?headerHeight+chat.content.usernameMessageSpacing+messageHeight:Math.max(headerHeight,messageHeight));
   const height=chat.front.autoSize?Math.max(chat.front.height,Math.ceil(naturalHeight)):chat.front.height;
@@ -82,7 +85,7 @@ export function calculateLayout(chat:ChatMessage): ChatLayout {
 
 export function applyPreset(chat:ChatMessage,name:"Reference"|"Compact"|"Big Creator"|"Minimal"):ChatMessage {
   const next=clone(chat); next.front=referenceFront(); next.back=referenceBack();
-  Object.assign(next.content,{layout:"stacked",usernameFontSize:22,messageFontSize:16,usernameWeight:700,messageWeight:400,lineHeight:1.25,usernameMessageSpacing:3}); next.badgeSettings={size:18,spacing:5};
+  Object.assign(next.content,{layout:"stacked",usernameFontSize:22,messageFontSize:16,usernameWeight:700,messageWeight:400,lineHeight:1.25,usernameMessageSpacing:3,fontFamily:"Roobert"}); next.badgeSettings={size:18,spacing:5};
   if(name==="Compact"){Object.assign(next.front,{minWidth:300,width:300,height:68,paddingX:16,paddingY:12,borderRadius:18});Object.assign(next.back,{offsetX:10,offsetY:12,borderRadius:18});Object.assign(next.content,{usernameFontSize:16,messageFontSize:16,usernameMessageSpacing:2});next.badgeSettings={size:15,spacing:4};}
   if(name==="Big Creator"){Object.assign(next.front,{minWidth:560,width:560,height:142,paddingX:32,paddingY:26,borderRadius:36,maxWidth:1000});Object.assign(next.back,{offsetX:24,offsetY:28,borderRadius:36});Object.assign(next.content,{usernameFontSize:28,messageFontSize:30,usernameMessageSpacing:10,messageMaxWidth:900});next.badgeSettings={size:26,spacing:7};}
   if(name==="Minimal"){Object.assign(next.front,{minWidth:360,width:360,height:82,paddingX:20,paddingY:16,borderRadius:20});Object.assign(next.back,{offsetX:6,offsetY:8,borderRadius:20});Object.assign(next.content,{usernameFontSize:19,messageFontSize:19,usernameMessageSpacing:3});next.badgeSettings={size:17,spacing:4};}
