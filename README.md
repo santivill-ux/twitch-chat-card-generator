@@ -2,6 +2,10 @@
 
 Editor visual para crear tarjetas de chat inspiradas en Twitch y exportarlas como PNG transparente de alta resolución. Todo funciona localmente en el navegador: no requiere cuentas, backend ni transferencia de mensajes o badges.
 
+## Demo
+
+[Abrir Twitch Chat Card Generator en Vercel](https://twitch-chat-card-generator-santiago-gabriels-projects.vercel.app)
+
 ## Características
 
 - Preview recortada de **Solo mensaje** y vista de **Canvas completo** en 1920×1080 o 1080×1920.
@@ -97,6 +101,8 @@ npm run vercel-build
 ```
 
 Vercel usa `vercel.json` y publica el directorio `vercel-dist`.
+
+Si el equipo utiliza Deployment Protection, desactiva **Vercel Authentication** para Production desde la configuración del proyecto antes de compartir la URL pública.
 
 ## Estructura principal
 
