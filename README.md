@@ -1,100 +1,117 @@
-# vinext-starter
+# Twitch Chat Card Generator
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+Editor visual para crear tarjetas de chat inspiradas en Twitch y exportarlas como PNG transparente de alta resolución. Todo funciona localmente en el navegador: no requiere cuentas, backend ni transferencia de mensajes o badges.
 
-## Prerequisites
+## Características
 
-- Node.js `>=22.13.0`
+- Preview recortada de **Solo mensaje** y vista de **Canvas completo** en 1920×1080 o 1080×1920.
+- Tarjetas frontal y trasera configurables: color, opacidad, padding, tamaño, bordes, sombras, offset, escala y radio.
+- Nueve tipos de gradiente para la Back Card: Linear, Radial, Angular, Diamond, Mesh, Shape Blur, Freeform, Multiple y Aurora.
+- Cuatro colores por gradiente, control de ángulo, presets y aleatorización.
+- Badges oficiales de Twitch, badge de TikTok y carga de badges personalizados PNG, WebP o SVG.
+- Sanitización de SVG para bloquear scripts, eventos y recursos externos.
+- Layout apilado e inline, wrapping automático, tamaño automático y advertencia de overflow.
+- Roobert como tipografía predeterminada, con selector de fuentes y fallbacks seguros.
+- Capas con selección, visibilidad, reordenamiento, duplicado y copiar/pegar estilos.
+- Exportación PNG transparente a calidad máxima 4×.
+- Fondos de preview blanco, negro, checkerboard, chroma, transparente o personalizado; nunca se exportan.
+- Guardado automático local con recuperación segura y reset del proyecto.
 
-## Quick Start
+## Stack
+
+- React 19
+- TypeScript
+- Vite / vinext
+- Tailwind CSS
+- Konva y react-konva
+- Vitest
+
+## Requisitos
+
+- Node.js 22.13 o superior
+- npm
+
+## Instalación local
 
 ```bash
+git clone https://github.com/santivill-ux/twitch-chat-card-generator.git
+cd twitch-chat-card-generator
 npm install
 npm run dev
-npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+Abre `http://localhost:3000`.
 
-## Included Shape
+## Scripts
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
-
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```bash
+npm run dev          # Servidor local
+npm test             # Pruebas unitarias
+npm run build        # Compilación de producción vinext
+npm run vercel-build # Compilación estática para Vercel
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+## Uso
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+1. Escribe el nombre y el mensaje en la pestaña **Content**.
+2. Personaliza Front Card, Back Card, tipografía y badges.
+3. Usa **Solo mensaje** para revisar el recorte final o **Canvas completo** para posicionar capas.
+4. Selecciona un fondo de preview para comprobar contraste. El fondo es únicamente visual.
+5. Exporta el mensaje o el canvas como PNG transparente a 4×.
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+## Tipografía Roobert
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+La aplicación está preparada para estas variantes:
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+```text
+public/fonts/Roobert-Regular.woff2
+public/fonts/Roobert-Medium.woff2
+public/fonts/Roobert-SemiBold.woff2
+public/fonts/Roobert-Bold.woff2
+```
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+Los archivos de Roobert no se distribuyen en este repositorio. Añade copias con licencia en `public/fonts`. Si no están disponibles, la aplicación usa Inter, Arial y `sans-serif` como fallback.
 
-## Useful Commands
+## Privacidad y persistencia
 
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+- Los proyectos se guardan exclusivamente en `localStorage`.
+- Los mensajes y badges personalizados no se envían a servicios externos.
+- Si se supera la cuota del navegador, la sesión activa permanece disponible y se muestra una advertencia.
 
-## Learn More
+## Exportación
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+- Formato: PNG
+- Fondo: transparente
+- Calidad: 4×
+- Full Canvas: 1920×1080 o 1080×1920
+- Message Only: bounding box del mensaje seleccionado con padding configurable
+
+Los fondos seleccionados en la preview son CSS y no forman parte del canvas exportado.
+
+## Despliegue en Vercel
+
+El repositorio incluye una compilación estática dedicada:
+
+```bash
+npm run vercel-build
+```
+
+Vercel usa `vercel.json` y publica el directorio `vercel-dist`.
+
+## Estructura principal
+
+```text
+app/                    Estilos globales y entrada vinext
+components/             Editor y renderizado Konva
+public/badges/           Badges visuales incluidos
+public/fonts/            Instrucciones para Roobert
+tests/                   Pruebas de layout y estado
+types/                   Interfaces TypeScript
+utils/                   Layout, presets, colores y persistencia
+client.tsx               Entrada estática para Vercel
+vite.vercel.config.ts    Build estático de Vercel
+```
+
+## Marcas y recursos
+
+Twitch, TikTok y sus marcas pertenecen a sus respectivos propietarios. Esta herramienta no está afiliada ni respaldada oficialmente por Twitch o TikTok.
