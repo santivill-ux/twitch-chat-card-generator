@@ -57,9 +57,14 @@ export interface StyleClipboard {
   front: FrontCardStyle; back: BackCardStyle; content: ContentStyle; badgeSettings: BadgeSettings;
 }
 
+export interface SavedStylePreset {
+  id: string; name: string; createdAt: number; style: StyleClipboard;
+}
+
 export interface ChatProject {
   version: 2; canvas: CanvasSettings; messages: ChatMessage[]; selectedId: string;
   randomize: RandomizeOptions; export: ExportSettings; styleClipboard: StyleClipboard | null;
+  savedPresets: SavedStylePreset[];
 }
 
 export interface ChatLayout {

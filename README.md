@@ -12,6 +12,8 @@ Editor visual para crear tarjetas de chat inspiradas en Twitch y exportarlas com
 - Tarjetas frontal y trasera configurables: color, opacidad, padding, tamaño, bordes, sombras, offset, escala y radio.
 - Nueve tipos de gradiente para la Back Card: Linear, Radial, Angular, Diamond, Mesh, Shape Blur, Freeform, Multiple y Aurora.
 - Cuatro colores por gradiente, control de ángulo, presets y aleatorización.
+- Paletas aleatorias coordinadas entre username y Back Card, con contraste seguro.
+- Presets de estilo personalizados que se guardan localmente y pueden volver a aplicarse.
 - Badges oficiales de Twitch, badge de TikTok y carga de badges personalizados PNG, WebP o SVG.
 - Sanitización de SVG para bloquear scripts, eventos y recursos externos.
 - Layout apilado e inline, wrapping automático, tamaño automático y advertencia de overflow.

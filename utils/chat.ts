@@ -3,6 +3,7 @@ import type { BackCardStyle, BadgeType, ChatLayout, ChatMessage, ChatProject, Fr
 export const STORAGE_KEY = "twitch-chat-card-generator:v2";
 export const USERNAME_COLORS = ["#FF7A7A", "#FFB86C", "#FFD866", "#A8E063", "#50FA7B", "#4DD0E1", "#5C9DFF", "#7A7CFF", "#BD93F9", "#FF79C6", "#FF4FA3"];
 export const BACK_COLORS = ["#70AFFF", "#72E4C0", "#FF8FB8", "#B792FF", "#FFB866", "#68D7F2", "#9EE56B", "#F48BFF"];
+const MATCHING_HUES = [6, 28, 48, 88, 145, 178, 208, 232, 267, 302, 327];
 export const BADGE_META: Record<BadgeType, { short: string; color: string; asset?: string }> = {
   Broadcaster:{short:"BC",color:"#E91916",asset:"/badges/broadcaster.png"}, Moderator:{short:"M",color:"#00AD78",asset:"/badges/moderator.png"}, VIP:{short:"VIP",color:"#E005B9",asset:"/badges/vip.png"},
   Subscriber:{short:"SUB",color:"#8B5CF6",asset:"/badges/subscriber.png"}, Founder:{short:"F",color:"#F59E0B",asset:"/badges/founder.png"}, Prime:{short:"P",color:"#1597E5",asset:"/badges/prime.png"},
@@ -32,7 +33,7 @@ export function createMessage(index = 0, randomUsername = false): ChatMessage {
 export function createProject(): ChatProject {
   const message = createMessage();
   return {version:2,canvas:{orientation:"horizontal",width:1920,height:1080,randomizeOnNew:false,previewMode:"message",previewBackgroundColor:"#FFFFFF",previewBackgroundPreset:"white",previewPadding:64},messages:[message],selectedId:message.id,
-    randomize:{usernameColor:true,backCardColor:true,cardOffset:true,borderRadius:true},export:{mode:"message",padding:20,scale:4},styleClipboard:null};
+    randomize:{usernameColor:true,backCardColor:true,cardOffset:true,borderRadius:true},export:{mode:"message",padding:20,scale:4},styleClipboard:null,savedPresets:[]};
 }
 
 export function loadProject(): ChatProject {
@@ -43,7 +44,8 @@ export function loadProject(): ChatProject {
     if (parsed.version !== 2 || !Array.isArray(parsed.messages) || !parsed.messages.length) return createProject();
     const defaults=createProject(); const baseMessage=createMessage();
     const legacyCanvas=parsed.canvas as ChatProject["canvas"] & {previewBackgroundEnabled?:boolean};
-    return {...defaults,...parsed,canvas:{...defaults.canvas,...parsed.canvas,previewBackgroundPreset:legacyCanvas.previewBackgroundPreset??(legacyCanvas.previewBackgroundEnabled===false?"transparent":"white")},export:{...defaults.export,...parsed.export,scale:4},messages:parsed.messages.map(message=>({...message,back:{...referenceBack(),...message.back},content:{...baseMessage.content,...message.content,fontFamily:message.content?.fontFamily??"Roobert"}}))};
+    const savedPresets=Array.isArray(parsed.savedPresets)?parsed.savedPresets.filter(preset=>preset&&typeof preset.name==="string"&&preset.style?.front&&preset.style?.back&&preset.style?.content&&preset.style?.badgeSettings):[];
+    return {...defaults,...parsed,canvas:{...defaults.canvas,...parsed.canvas,previewBackgroundPreset:legacyCanvas.previewBackgroundPreset??(legacyCanvas.previewBackgroundEnabled===false?"transparent":"white")},export:{...defaults.export,...parsed.export,scale:4},savedPresets,messages:parsed.messages.map(message=>({...message,back:{...referenceBack(),...message.back},content:{...baseMessage.content,...message.content,fontFamily:message.content?.fontFamily??"Roobert"}}))};
   } catch { return createProject(); }
 }
 
@@ -53,6 +55,24 @@ export function contrastRatio(a: string, b: string) {
 }
 export function randomUsernameColor(background="#19171C") { const safe=USERNAME_COLORS.filter(color=>contrastRatio(color,background)>=4.5); return (safe.length?safe:USERNAME_COLORS)[Math.floor(Math.random()*(safe.length?safe:USERNAME_COLORS).length)]; }
 export function randomBackColor() { return BACK_COLORS[Math.floor(Math.random()*BACK_COLORS.length)]; }
+
+function hslToHex(hue:number,saturation:number,lightness:number) {
+  const h=((hue%360)+360)%360/360, s=saturation/100, l=lightness/100;
+  const channel=(offset:number)=>{const k=(offset+h*12)%12;return l-s*Math.min(l,1-l)*Math.max(-1,Math.min(k-3,9-k,1));};
+  return `#${[channel(0),channel(8),channel(4)].map(value=>Math.round(value*255).toString(16).padStart(2,"0")).join("")}`.toUpperCase();
+}
+
+export interface MatchingColorPalette {
+  username: string; solid: string; start: string; accent: string; accent2: string; end: string;
+}
+
+export function randomMatchingPalette(background="#19171C",random:()=>number=Math.random):MatchingColorPalette {
+  const hue=MATCHING_HUES[Math.min(MATCHING_HUES.length-1,Math.floor(random()*MATCHING_HUES.length))];
+  const candidates=[68,76,84,92,32,24,16].map(lightness=>hslToHex(hue,lightness>60?88:74,lightness));
+  const username=candidates.find(color=>contrastRatio(color,background)>=4.5)??randomUsernameColor(background);
+  const start=hslToHex(hue,88,62);
+  return {username,solid:start,start,accent:hslToHex(hue+22,82,68),accent2:hslToHex(hue-24,84,58),end:hslToHex(hue+46,78,52)};
+}
 
 export function measureText(text:string,fontSize:number,weight=400) { return Math.max(fontSize*.5, Array.from(text || " ").reduce((sum,char)=>sum + (char===" "?.31:/[MW@#%]/.test(char)?.82:/[ilI1|]/.test(char)?.3:.56)*fontSize,0) * (weight>=700?1.025:1)); }
 export function wrappedLineCount(text:string,maxWidth:number,fontSize:number,weight:number) {
