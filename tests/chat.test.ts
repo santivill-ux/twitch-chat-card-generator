@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPreset, calculateLayout, contrastRatio, copyStyle, createMessage, createProject, pasteStyle, randomMatchingPalette, randomUsernameColor } from "../utils/chat";
+import { applyPreset, calculateCaptionText, calculateLayout, contrastRatio, copyStyle, createMessage, createProject, pasteStyle, randomMatchingPalette, randomUsernameColor } from "../utils/chat";
 import { animationFrame, animationTotalMs } from "../utils/animation";
 
 describe("reference layout", () => {
@@ -64,6 +64,16 @@ describe("styles and project state", () => {
     expect(result.back.backgroundColor).toBe("#FFFFFF");
     expect(result.back.offsetY).toBe(16);
     expect(layout.messageLines).toBe(2);
+  });
+  it("keeps caption username and message typography independent", () => {
+    const chat = applyPreset(createMessage(), "Bold Caption");
+    chat.content.usernameWeight = 700;
+    chat.content.messageWeight = 400;
+    const boldPrefix = calculateCaptionText(chat, 840).prefixWidth;
+    chat.content.usernameWeight = 400;
+    const regularPrefix = calculateCaptionText(chat, 840).prefixWidth;
+    expect(chat.content.messageWeight).toBe(400);
+    expect(boldPrefix).toBeGreaterThan(regularPrefix);
   });
   it("creates a versioned local project", () => {
     const project = createProject();
