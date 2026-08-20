@@ -14,6 +14,7 @@ Editor visual para crear tarjetas de chat inspiradas en Twitch y exportarlas com
 - Cuatro colores por gradiente, control de ángulo, presets y aleatorización.
 - Paletas aleatorias coordinadas entre username y Back Card, con contraste seguro.
 - Presets de estilo personalizados que se guardan localmente y pueden volver a aplicarse.
+- Preset **Bold Caption** inspirado en captions de stream: tarjeta oscura, base blanca y texto bold continuo con wrapping a ancho completo.
 - Badges oficiales de Twitch, badge de TikTok y carga de badges personalizados PNG, WebP o SVG.
 - Sanitización de SVG para bloquear scripts, eventos y recursos externos.
 - Layout apilado e inline, wrapping automático, tamaño automático y advertencia de overflow.

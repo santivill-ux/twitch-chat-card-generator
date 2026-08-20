@@ -1,5 +1,6 @@
 export type Orientation = "horizontal" | "vertical";
-export type LayoutMode = "stacked" | "inline";
+export type LayoutMode = "stacked" | "inline" | "caption";
+export type StylePresetName = "Reference" | "Compact" | "Big Creator" | "Minimal" | "Bold Caption";
 export type ColorMode = "manual" | "random";
 export type FontChoice = "Roobert" | "Inter" | "Arial" | "Helvetica" | "Verdana" | "Georgia" | "Trebuchet MS" | "system-ui";
 export type PreviewMode = "canvas" | "message";

@@ -1,4 +1,4 @@
-import type { AnimationSettings, BackCardStyle, BadgeType, ChatLayout, ChatMessage, ChatProject, FrontCardStyle, StyleClipboard } from "../types/chat";
+import type { AnimationSettings, BackCardStyle, BadgeType, ChatLayout, ChatMessage, ChatProject, FrontCardStyle, StyleClipboard, StylePresetName } from "../types/chat";
 
 export const STORAGE_KEY = "twitch-chat-card-generator:v2";
 export const USERNAME_COLORS = ["#FF7A7A", "#FFB86C", "#FFD866", "#A8E063", "#50FA7B", "#4DD0E1", "#5C9DFF", "#7A7CFF", "#BD93F9", "#FF79C6", "#FF4FA3"];
@@ -285,19 +285,20 @@ export function wrappedLineCount(text: string, maxWidth: number, fontSize: numbe
 export function calculateLayout(chat: ChatMessage): ChatLayout {
   const displayUsername = chat.username || "SoySanwich";
   const displayMessage = chat.message || "Ingresa lo que quieras decir";
+  const captionText = `${displayUsername}: ${displayMessage}`;
   const visibleBadges = chat.badges.filter((b) => b.visible).length;
   const badgesWidth = visibleBadges ? visibleBadges * chat.badgeSettings.size + (visibleBadges - 1) * chat.badgeSettings.spacing : 0;
   const badgeLead = visibleBadges ? badgesWidth + chat.content.badgeUsernameSpacing : 0;
   const usernameWidth = measureText(displayUsername, chat.content.usernameFontSize, chat.content.usernameWeight);
   const headerHeight = Math.max(visibleBadges ? chat.badgeSettings.size : 0, chat.content.usernameFontSize * 1.15);
   const messageNatural = measureText(displayMessage, chat.content.messageFontSize, chat.content.messageWeight);
-  const desiredContent = chat.content.layout === "stacked" ? Math.max(badgeLead + usernameWidth, Math.min(messageNatural, chat.content.messageMaxWidth)) : badgeLead + usernameWidth + measureText(": ", chat.content.usernameFontSize, chat.content.usernameWeight) + Math.min(messageNatural, chat.content.messageMaxWidth);
+  const desiredContent = chat.content.layout === "stacked" ? Math.max(badgeLead + usernameWidth, Math.min(messageNatural, chat.content.messageMaxWidth)) : chat.content.layout === "caption" ? badgeLead + Math.min(measureText(captionText, chat.content.messageFontSize, chat.content.messageWeight), chat.content.messageMaxWidth) : badgeLead + usernameWidth + measureText(": ", chat.content.usernameFontSize, chat.content.usernameWeight) + Math.min(messageNatural, chat.content.messageMaxWidth);
   const autoWidth = clamp(desiredContent + chat.front.paddingX * 2, chat.front.minWidth, chat.front.maxWidth);
   const width = chat.front.autoSize ? autoWidth : chat.front.width;
   const contentWidth = Math.max(20, width - chat.front.paddingX * 2);
-  const inlineLead = chat.content.layout === "inline" ? badgeLead + usernameWidth + measureText(": ", chat.content.usernameFontSize, chat.content.usernameWeight) : 0;
+  const inlineLead = chat.content.layout === "inline" ? badgeLead + usernameWidth + measureText(": ", chat.content.usernameFontSize, chat.content.usernameWeight) : chat.content.layout === "caption" ? badgeLead : 0;
   const messageWidth = Math.max(20, Math.min(chat.content.messageMaxWidth, contentWidth - inlineLead));
-  const messageLines = wrappedLineCount(displayMessage, messageWidth, chat.content.messageFontSize, chat.content.messageWeight);
+  const messageLines = wrappedLineCount(chat.content.layout === "caption" ? captionText : displayMessage, messageWidth, chat.content.messageFontSize, chat.content.messageWeight);
   const messageHeight = messageLines * chat.content.messageFontSize * chat.content.lineHeight;
   const naturalHeight = chat.front.paddingY * 2 + (chat.content.layout === "stacked" ? headerHeight + chat.content.usernameMessageSpacing + messageHeight : Math.max(headerHeight, messageHeight));
   const height = chat.front.autoSize ? Math.max(chat.front.height, Math.ceil(naturalHeight)) : chat.front.height;
@@ -316,7 +317,7 @@ export function calculateLayout(chat: ChatMessage): ChatLayout {
   };
 }
 
-export function applyPreset(chat: ChatMessage, name: "Reference" | "Compact" | "Big Creator" | "Minimal"): ChatMessage {
+export function applyPreset(chat: ChatMessage, name: StylePresetName): ChatMessage {
   const next = clone(chat);
   next.front = referenceFront();
   next.back = referenceBack();
@@ -383,6 +384,47 @@ export function applyPreset(chat: ChatMessage, name: "Reference" | "Compact" | "
       usernameMessageSpacing: 3,
     });
     next.badgeSettings = { size: 17, spacing: 4 };
+  }
+  if (name === "Bold Caption") {
+    Object.assign(next.front, {
+      backgroundColor: "#17161C",
+      autoSize: true,
+      minWidth: 720,
+      width: 720,
+      height: 154,
+      maxWidth: 900,
+      paddingX: 30,
+      paddingY: 26,
+      borderRadius: 30,
+      border: { enabled: false, color: "#FFFFFF", thickness: 0 },
+      shadow: { enabled: false, blur: 0, opacity: 0, x: 0, y: 0 },
+    });
+    Object.assign(next.back, {
+      backgroundColor: "#FFFFFF",
+      fillMode: "solid",
+      opacity: 1,
+      offsetX: 12,
+      offsetY: 16,
+      borderRadius: 30,
+      linkBorderRadius: true,
+      border: { enabled: false, color: "#FFFFFF", thickness: 0 },
+      shadow: { enabled: false, blur: 0, opacity: 0, x: 0, y: 0 },
+    });
+    Object.assign(next.content, {
+      layout: "caption",
+      usernameColor: "#F4F4F4",
+      messageColor: "#F4F4F4",
+      usernameFontSize: 36,
+      messageFontSize: 36,
+      usernameWeight: 700,
+      messageWeight: 700,
+      lineHeight: 1.3,
+      messageMaxWidth: 840,
+      textAlign: "left",
+      badgeUsernameSpacing: 10,
+      fontFamily: "Roobert",
+    });
+    next.badgeSettings = { size: 26, spacing: 6 };
   }
   return next;
 }

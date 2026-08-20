@@ -50,6 +50,21 @@ describe("styles and project state", () => {
     expect(result.transform.x).toBe(77);
     expect(result.front.borderRadius).toBe(36);
   });
+  it("matches the bold caption reference and preserves its content", () => {
+    const chat = createMessage();
+    chat.username = "johan98";
+    chat.message = "se caso el huitlacoche con una uraca famosa";
+    const result = applyPreset(chat, "Bold Caption");
+    const layout = calculateLayout(result);
+    expect(result.username).toBe("johan98");
+    expect(result.message).toBe(chat.message);
+    expect(result.content.layout).toBe("caption");
+    expect(result.content.messageWeight).toBe(700);
+    expect(result.front.backgroundColor).toBe("#17161C");
+    expect(result.back.backgroundColor).toBe("#FFFFFF");
+    expect(result.back.offsetY).toBe(16);
+    expect(layout.messageLines).toBe(2);
+  });
   it("creates a versioned local project", () => {
     const project = createProject();
     expect(project.version).toBe(2);

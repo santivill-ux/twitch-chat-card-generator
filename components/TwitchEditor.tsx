@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type Konva from "konva";
 import { Circle, Group, Image as KonvaImage, Layer, Path, Rect, Stage, Text, Transformer } from "react-konva";
-import type { AnimationType, BackGradientType, BadgeInstance, BadgeType, ChatMessage, ChatProject, FontChoice, InspectorTab, VideoFormat } from "../types/chat";
+import type { AnimationType, BackGradientType, BadgeInstance, BadgeType, ChatMessage, ChatProject, FontChoice, InspectorTab, StylePresetName, VideoFormat } from "../types/chat";
 import { applyPreset, BADGE_META, calculateLayout, copyStyle, createMessage, createProject, loadProject, pasteStyle, randomMatchingPalette, randomUsernameColor, safeFilename, sanitizeSvg, STORAGE_KEY, uid } from "../utils/chat";
 import { animationFrame, animationTotalMs } from "../utils/animation";
 
@@ -334,6 +334,7 @@ function useGradientTexture(back: ChatMessage["back"], width: number, height: nu
 function ChatCard({ chat, selected, locked, onSelect, onPatch, register }: { chat: ChatMessage; selected: boolean; locked: boolean; onSelect: () => void; onPatch: (patch: Partial<ChatMessage>) => void; register: (node: Konva.Group | null) => void }) {
   const previewUsername = chat.username || "SoySanwich";
   const previewMessage = chat.message || "Ingresa lo que quieras decir";
+  const captionText = `${previewUsername}: ${previewMessage}`;
   const bounds = cardVisualBounds(chat);
   const layout = bounds.layout;
   const visibleBadges = chat.badges.filter((badge) => badge.visible);
@@ -396,8 +397,14 @@ function ChatCard({ chat, selected, locked, onSelect, onPatch, register }: { cha
         {visibleBadges.map((badge, index) => (
           <BadgeNode key={badge.id} badge={badge} x={chat.front.paddingX + index * (chat.badgeSettings.size + chat.badgeSettings.spacing)} y={headerY + (layout.headerHeight - chat.badgeSettings.size) / 2} size={chat.badgeSettings.size} />
         ))}
-        <Text name="username-text" x={usernameX} y={usernameY} text={chat.content.layout === "inline" ? `${previewUsername}:` : previewUsername} fill={chat.content.usernameColor} fontFamily={fontFamily} fontStyle={chat.content.usernameWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.usernameFontSize} />
-        <Text name="message-text" x={chat.content.layout === "stacked" ? chat.front.paddingX : inlineMessageX} y={messageY} width={messageWidth} text={previewMessage} fill={chat.content.messageColor} fontFamily={fontFamily} fontStyle={chat.content.messageWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.messageFontSize} lineHeight={chat.content.lineHeight} align={chat.content.textAlign} wrap="word" />
+        {chat.content.layout === "caption" ? (
+          <Text name="message-text" x={chat.front.paddingX + badgeLead} y={headerY} width={Math.max(20, layout.contentWidth - badgeLead)} text={captionText} fill={chat.content.messageColor} fontFamily={fontFamily} fontStyle={chat.content.messageWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.messageFontSize} lineHeight={chat.content.lineHeight} align={chat.content.textAlign} wrap="word" />
+        ) : (
+          <>
+            <Text name="username-text" x={usernameX} y={usernameY} text={chat.content.layout === "inline" ? `${previewUsername}:` : previewUsername} fill={chat.content.usernameColor} fontFamily={fontFamily} fontStyle={chat.content.usernameWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.usernameFontSize} />
+            <Text name="message-text" x={chat.content.layout === "stacked" ? chat.front.paddingX : inlineMessageX} y={messageY} width={messageWidth} text={previewMessage} fill={chat.content.messageColor} fontFamily={fontFamily} fontStyle={chat.content.messageWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.messageFontSize} lineHeight={chat.content.lineHeight} align={chat.content.textAlign} wrap="word" />
+          </>
+        )}
       </Group>
       {selected && layout.overflow ? <Circle x={layout.width - 10} y={10} radius={5} fill="#F59E0B" /> : null}
     </Group>
@@ -619,7 +626,7 @@ export default function TwitchEditor() {
         },
       },
     });
-  const applyStylePreset = (name: "Reference" | "Compact" | "Big Creator" | "Minimal") => {
+  const applyStylePreset = (name: StylePresetName) => {
     dispatch({ type: "replace-message", message: applyPreset(selected, name) });
     showToast(`${name} preset applied`);
   };
@@ -832,7 +839,9 @@ export default function TwitchEditor() {
     });
     node.opacity(origin.opacity * frame.opacity);
     if (messageNode) {
-      const fullText = chat.message || "Ingresa lo que quieras decir";
+      const previewUsername = chat.username || "SoySanwich";
+      const previewMessage = chat.message || "Ingresa lo que quieras decir";
+      const fullText = chat.content.layout === "caption" ? `${previewUsername}: ${previewMessage}` : previewMessage;
       messageNode.text(fullText.slice(0, Math.ceil(fullText.length * frame.typedProgress)));
     }
   };
@@ -1397,12 +1406,13 @@ export default function TwitchEditor() {
                       value={selected.content.layout}
                       onChange={(e) =>
                         patchContent({
-                          layout: e.target.value as "stacked" | "inline",
+                          layout: e.target.value as ChatMessage["content"]["layout"],
                         })
                       }
                     >
                       <option value="stacked">Reference · stacked</option>
                       <option value="inline">Traditional · inline</option>
+                      <option value="caption">Caption · full-width wrap</option>
                     </select>
                   </Field>
                 </PanelSection>
@@ -1552,7 +1562,7 @@ export default function TwitchEditor() {
               <>
                 <PanelSection title="Presets">
                   <div className="preset-grid wide">
-                    {(["Reference", "Compact", "Big Creator", "Minimal"] as const).map((name) => (
+                    {(["Reference", "Compact", "Big Creator", "Minimal", "Bold Caption"] as const).map((name) => (
                       <button key={name} onClick={() => applyStylePreset(name)}>
                         {name}
                       </button>
