@@ -20,6 +20,8 @@ Editor visual para crear tarjetas de chat inspiradas en Twitch y exportarlas com
 - Roobert como tipografía predeterminada, con selector de fuentes y fallbacks seguros.
 - Capas con selección, visibilidad, reordenamiento, duplicado y copiar/pegar estilos.
 - Exportación PNG transparente a calidad máxima 4×.
+- Once animaciones por mensaje: Typing, Pop In, Pop Out, Pop In + Out, Fade In/Out, Slide Up, Bounce, Pulse, Float y Shake.
+- Exportación de la animación del mensaje seleccionado, recortada automáticamente, en MP4 o MOV a 30/60 FPS y hasta 2×.
 - Fondos de preview blanco, negro, checkerboard, chroma, transparente o personalizado; nunca se exportan.
 - Guardado automático local con recuperación segura y reset del proyecto.
 
@@ -64,6 +66,7 @@ npm run vercel-build # Compilación estática para Vercel
 3. Usa **Solo mensaje** para revisar el recorte final o **Canvas completo** para posicionar capas.
 4. Selecciona un fondo de preview para comprobar contraste. El fondo es únicamente visual.
 5. Exporta el mensaje o el canvas como PNG transparente a 4×.
+6. En **Animation**, elige un movimiento, ajusta duración, delay e intensidad, reproduce la preview y exporta MP4 o MOV.
 
 ## Tipografía Roobert
 
@@ -93,6 +96,14 @@ Los archivos de Roobert no se distribuyen en este repositorio. Añade copias con
 - Message Only: bounding box del mensaje seleccionado con padding configurable
 
 Los fondos seleccionados en la preview son CSS y no forman parte del canvas exportado.
+
+### Video animado
+
+- Formatos: MP4 y MOV.
+- Contenido: únicamente el mensaje seleccionado, recortado a su bounding box animado con padding configurable.
+- Calidad: 1× o 2×; 30 o 60 FPS.
+- Fondo: color sólido configurable e incluido en el video para máxima compatibilidad entre reproductores.
+- Privacidad: la grabación y conversión se realizan localmente. En la primera exportación, el navegador descarga FFmpeg WebAssembly (aproximadamente 31 MB); los mensajes y badges no se envían a ningún servidor.
 
 ## Despliegue en Vercel
 

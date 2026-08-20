@@ -3,273 +3,2206 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type Konva from "konva";
 import { Circle, Group, Image as KonvaImage, Layer, Path, Rect, Stage, Text, Transformer } from "react-konva";
-import type { BackGradientType, BadgeInstance, BadgeType, ChatMessage, ChatProject, FontChoice, InspectorTab } from "../types/chat";
+import type { AnimationType, BackGradientType, BadgeInstance, BadgeType, ChatMessage, ChatProject, FontChoice, InspectorTab, VideoFormat } from "../types/chat";
 import { applyPreset, BADGE_META, calculateLayout, copyStyle, createMessage, createProject, loadProject, pasteStyle, randomMatchingPalette, randomUsernameColor, safeFilename, sanitizeSvg, STORAGE_KEY, uid } from "../utils/chat";
+import { animationFrame, animationTotalMs } from "../utils/animation";
 
-type IconProps = { size?:number; className?:string };
-const makeIcon = (glyph:string) => function Icon({size=14,className}:IconProps){return <span className={className??"ui-icon"} style={{fontSize:size}} aria-hidden="true">{glyph}</span>;};
-const Copy=makeIcon("⧉"), Download=makeIcon("↓"), Eye=makeIcon("●"), EyeOff=makeIcon("○"), GripVertical=makeIcon("⠿"), ImagePlus=makeIcon("▣"), Layers3=makeIcon("▤"), Plus=makeIcon("+"), RotateCcw=makeIcon("↺"), Shuffle=makeIcon("⌁"), Sparkles=makeIcon("✦"), Trash2=makeIcon("×");
-const siTwitch={path:"M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"};
-const siTiktok={path:"M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"};
+type IconProps = { size?: number; className?: string };
+const makeIcon = (glyph: string) =>
+  function Icon({ size = 14, className }: IconProps) {
+    return (
+      <span className={className ?? "ui-icon"} style={{ fontSize: size }} aria-hidden="true">
+        {glyph}
+      </span>
+    );
+  };
+const Copy = makeIcon("⧉"),
+  Download = makeIcon("↓"),
+  Eye = makeIcon("●"),
+  EyeOff = makeIcon("○"),
+  GripVertical = makeIcon("⠿"),
+  ImagePlus = makeIcon("▣"),
+  Layers3 = makeIcon("▤"),
+  Plus = makeIcon("+"),
+  RotateCcw = makeIcon("↺"),
+  Shuffle = makeIcon("⌁"),
+  Sparkles = makeIcon("✦"),
+  Trash2 = makeIcon("×");
+const siTwitch = {
+  path: "M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z",
+};
+const siTiktok = {
+  path: "M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z",
+};
 
-function BrandIcon({icon,size=18,color="currentColor"}:{icon:{path:string};size?:number;color?:string}) {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" width={size} height={size} fill={color}><path d={icon.path}/></svg>;
+function BrandIcon({ icon, size = 18, color = "currentColor" }: { icon: { path: string }; size?: number; color?: string }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width={size} height={size} fill={color}>
+      <path d={icon.path} />
+    </svg>
+  );
 }
 
-function BadgePreview({type}:{type:BadgeType}) {
-  const meta=BADGE_META[type];
-  if(meta.asset) return <img src={meta.asset} alt=""/>;
-  if(type==="TikTok") return <BrandIcon icon={siTiktok} size={14} color="#fff"/>;
+function BadgePreview({ type }: { type: BadgeType }) {
+  const meta = BADGE_META[type];
+  if (meta.asset) return <img src={meta.asset} alt="" />;
+  if (type === "TikTok") return <BrandIcon icon={siTiktok} size={14} color="#fff" />;
   return <>{meta.short}</>;
 }
 
-type Action =
-  | { type:"project"; patch:Partial<ChatProject> }
-  | { type:"message"; id:string; patch:Partial<ChatMessage> }
-  | { type:"replace-message"; message:ChatMessage }
-  | { type:"messages"; messages:ChatMessage[]; selectedId?:string }
-  | { type:"reset"; project:ChatProject };
+type Action = { type: "project"; patch: Partial<ChatProject> } | { type: "message"; id: string; patch: Partial<ChatMessage> } | { type: "replace-message"; message: ChatMessage } | { type: "messages"; messages: ChatMessage[]; selectedId?: string } | { type: "reset"; project: ChatProject };
 
-function reducer(state:ChatProject,action:Action):ChatProject {
-  if(action.type==="project") return {...state,...action.patch};
-  if(action.type==="message") return {...state,messages:state.messages.map(message=>message.id===action.id?{...message,...action.patch}:message)};
-  if(action.type==="replace-message") return {...state,messages:state.messages.map(message=>message.id===action.message.id?action.message:message)};
-  if(action.type==="messages") return {...state,messages:action.messages,selectedId:action.selectedId??state.selectedId};
+function reducer(state: ChatProject, action: Action): ChatProject {
+  if (action.type === "project") return { ...state, ...action.patch };
+  if (action.type === "message")
+    return {
+      ...state,
+      messages: state.messages.map((message) => (message.id === action.id ? { ...message, ...action.patch } : message)),
+    };
+  if (action.type === "replace-message")
+    return {
+      ...state,
+      messages: state.messages.map((message) => (message.id === action.message.id ? action.message : message)),
+    };
+  if (action.type === "messages")
+    return {
+      ...state,
+      messages: action.messages,
+      selectedId: action.selectedId ?? state.selectedId,
+    };
   return action.project;
 }
 
-function useLoadedImage(source?:string) {
-  const [image,setImage]=useState<HTMLImageElement|null>(null);
-  useEffect(()=>{if(!source){setImage(null);return;} const next=new window.Image();next.onload=()=>setImage(next);next.src=source;return()=>{next.onload=null;};},[source]);
+function useLoadedImage(source?: string) {
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    if (!source) {
+      setImage(null);
+      return;
+    }
+    const next = new window.Image();
+    next.onload = () => setImage(next);
+    next.src = source;
+    return () => {
+      next.onload = null;
+    };
+  }, [source]);
   return image;
 }
 
-function BadgeNode({badge,x,y,size}:{badge:BadgeInstance;x:number;y:number;size:number}) {
-  const meta=BADGE_META[badge.type];
-  const image=useLoadedImage(badge.customDataUrl??meta.asset);
-  if(image) return <KonvaImage image={image} x={x} y={y} width={size} height={size} cornerRadius={Math.max(2,size*.18)} />;
-  if(badge.type==="TikTok") { const inner=size*.68; const scale=inner/24; return <Group x={x} y={y}><Rect width={size} height={size} fill="#050505" cornerRadius={Math.max(3,size*.22)}/><Path data={siTiktok.path} fill="#fff" x={(size-inner)/2} y={(size-inner)/2} scaleX={scale} scaleY={scale}/></Group>; }
-  return <Group x={x} y={y}><Rect width={size} height={size} fill={meta.color} cornerRadius={Math.max(3,size*.22)} /><Text width={size} height={size} text={meta.short} fill="#fff" fontFamily="Roobert, Inter, Arial" fontStyle="bold" fontSize={Math.max(7,size*(meta.short.length>1?.36:.52))} align="center" verticalAlign="middle" /></Group>;
-}
-
-function cardVisualBounds(chat:ChatMessage) {
-  const layout=calculateLayout(chat);
-  const backX=chat.back.offsetX+(layout.width-layout.backWidth)/2;
-  const backY=chat.back.offsetY+(layout.height-layout.backHeight)/2;
-  const backLeft=backX-layout.backWidth*(chat.back.scaleX-1)/2;
-  const backTop=backY-layout.backHeight*(chat.back.scaleY-1)/2;
-  const minX=Math.min(0,backLeft), minY=Math.min(0,backTop);
-  const maxX=Math.max(layout.width,backLeft+layout.backWidth*chat.back.scaleX);
-  const maxY=Math.max(layout.height,backTop+layout.backHeight*chat.back.scaleY);
-  return {layout,minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,centerX:(minX+maxX)/2,centerY:(minY+maxY)/2};
-}
-
-const GRADIENT_LABELS:Record<BackGradientType,string>={linear:"Linear",radial:"Radial",angular:"Angular",diamond:"Diamond",mesh:"Mesh","shape-blur":"Shape blur",freeform:"Freeform",multiple:"Multiple",aurora:"Aurora"};
-const GRADIENT_TYPES=Object.keys(GRADIENT_LABELS) as BackGradientType[];
-function rgb(hex:string){const value=hex.replace("#","");return [parseInt(value.slice(0,2),16)||0,parseInt(value.slice(2,4),16)||0,parseInt(value.slice(4,6),16)||0] as const;}
-function rgba(hex:string,alpha:number){const [r,g,b]=rgb(hex);return `rgba(${r},${g},${b},${alpha})`;}
-function lerpColor(a:string,b:string,t:number){const x=rgb(a),y=rgb(b);return [Math.round(x[0]+(y[0]-x[0])*t),Math.round(x[1]+(y[1]-x[1])*t),Math.round(x[2]+(y[2]-x[2])*t)] as const;}
-
-function useGradientTexture(back:ChatMessage["back"],width:number,height:number) {
-  return useMemo(()=>{if(back.fillMode!=="gradient"||typeof document==="undefined")return null;const quality=Math.max(1,Math.min(4,2048/Math.max(1,width),1024/Math.max(1,height)));const w=Math.max(2,Math.ceil(width*quality)),h=Math.max(2,Math.ceil(height*quality));const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;const ctx=canvas.getContext("2d");if(!ctx)return null;
-    const colors=[back.gradientStart??back.backgroundColor,back.gradientAccent??"#50FA7B",back.gradientAccent2??"#FF79C6",back.gradientEnd??"#A970FF"];const gradientType=back.gradientType??"linear",gradientAngle=back.gradientAngle??135,angle=(gradientAngle-90)*Math.PI/180,cx=w/2,cy=h/2,length=Math.abs(w*Math.cos(angle))+Math.abs(h*Math.sin(angle));
-    const linear=()=>{const dx=Math.cos(angle)*length/2,dy=Math.sin(angle)*length/2,g=ctx.createLinearGradient(cx-dx,cy-dy,cx+dx,cy+dy);g.addColorStop(0,colors[0]);g.addColorStop(.36,colors[1]);g.addColorStop(.68,colors[2]);g.addColorStop(1,colors[3]);return g;};
-    const blob=(x:number,y:number,r:number,color:string,alpha=1)=>{const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,rgba(color,alpha));g.addColorStop(1,rgba(color,0));ctx.fillStyle=g;ctx.fillRect(0,0,w,h);};
-    if(gradientType==="linear"){ctx.fillStyle=linear();ctx.fillRect(0,0,w,h);}
-    if(gradientType==="radial"){const g=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(w,h)*.72);g.addColorStop(0,colors[0]);g.addColorStop(.38,colors[1]);g.addColorStop(.72,colors[2]);g.addColorStop(1,colors[3]);ctx.fillStyle=g;ctx.fillRect(0,0,w,h);}
-    if(gradientType==="angular"){const createConic=(ctx as CanvasRenderingContext2D & {createConicGradient?:(angle:number,x:number,y:number)=>CanvasGradient}).createConicGradient;if(createConic){const g=createConic.call(ctx,angle,cx,cy);colors.forEach((color,index)=>g.addColorStop(index/colors.length,color));g.addColorStop(1,colors[0]);ctx.fillStyle=g;}else ctx.fillStyle=linear();ctx.fillRect(0,0,w,h);}
-    if(gradientType==="diamond"){const image=ctx.createImageData(w,h),stops=[colors[0],colors[1],colors[2],colors[3]];for(let y=0;y<h;y++)for(let x=0;x<w;x++){const d=Math.min(1,(Math.abs(x-cx)/(w/2)+Math.abs(y-cy)/(h/2))/2),position=d*(stops.length-1),index=Math.min(stops.length-2,Math.floor(position)),mix=position-index,c=lerpColor(stops[index],stops[index+1],mix),p=(y*w+x)*4;image.data[p]=c[0];image.data[p+1]=c[1];image.data[p+2]=c[2];image.data[p+3]=255;}ctx.putImageData(image,0,0);}
-    if(gradientType==="mesh"){ctx.fillStyle=colors[3];ctx.fillRect(0,0,w,h);blob(w*.12,h*.2,w*.7,colors[0]);blob(w*.82,h*.08,w*.62,colors[1],.95);blob(w*.78,h*.94,w*.72,colors[2],.92);blob(w*.28,h*.88,w*.58,colors[3],.72);}
-    if(gradientType==="shape-blur"){ctx.fillStyle=colors[3];ctx.fillRect(0,0,w,h);ctx.save();ctx.filter=`blur(${Math.max(20,h*.13)}px)`;[[w*.1,h*.1,w*.55,h*.72,colors[0]],[w*.55,-h*.15,w*.62,h*.75,colors[1]],[w*.42,h*.54,w*.7,h*.62,colors[2]]].forEach(([x,y,rw,rh,color])=>{ctx.fillStyle=String(color);ctx.beginPath();ctx.ellipse(Number(x)+Number(rw)/2,Number(y)+Number(rh)/2,Number(rw)/2,Number(rh)/2,gradientAngle*Math.PI/180,0,Math.PI*2);ctx.fill();});ctx.restore();}
-    if(gradientType==="freeform"){ctx.fillStyle=colors[3];ctx.fillRect(0,0,w,h);ctx.save();ctx.filter=`blur(${Math.max(12,h*.07)}px)`;colors.slice(0,3).forEach((color,index)=>{const ox=index*w*.28-h*.2,oy=index%2?h*.34:-h*.12;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(ox,oy+h*.45);ctx.bezierCurveTo(ox+w*.14,oy-h*.18,ox+w*.36,oy+h*.05,ox+w*.42,oy+h*.4);ctx.bezierCurveTo(ox+w*.52,oy+h*.82,ox+w*.12,oy+h*.92,ox,oy+h*.45);ctx.fill();});ctx.restore();}
-    if(gradientType==="multiple"){ctx.fillStyle=linear();ctx.fillRect(0,0,w,h);ctx.globalCompositeOperation="screen";blob(w*.22,h*.25,w*.55,colors[1],.8);blob(w*.82,h*.78,w*.62,colors[2],.75);ctx.globalCompositeOperation="source-over";}
-    if(gradientType==="aurora"){const base=ctx.createLinearGradient(0,0,0,h);base.addColorStop(0,colors[3]);base.addColorStop(1,"#07111F");ctx.fillStyle=base;ctx.fillRect(0,0,w,h);ctx.save();ctx.globalCompositeOperation="screen";ctx.filter=`blur(${Math.max(10,h*.045)}px)`;[colors[0],colors[1],colors[2]].forEach((color,index)=>{ctx.strokeStyle=rgba(color,.78);ctx.lineWidth=h*(.16-index*.025);ctx.beginPath();for(let x=-w*.1;x<=w*1.1;x+=w/80){const y=h*(.34+index*.17)+Math.sin(x/w*Math.PI*2.2+index*1.7)*h*.13+(x/w-.5)*h*.08;if(x===-w*.1)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();});ctx.restore();}
-    return canvas;},[back.fillMode,back.gradientType,back.gradientStart,back.gradientEnd,back.gradientAccent,back.gradientAccent2,back.gradientAngle,width,height]);
-}
-
-function ChatCard({chat,selected,locked,onSelect,onPatch,register}:{chat:ChatMessage;selected:boolean;locked:boolean;onSelect:()=>void;onPatch:(patch:Partial<ChatMessage>)=>void;register:(node:Konva.Group|null)=>void}) {
-  const previewUsername=chat.username||"SoySanwich"; const previewMessage=chat.message||"Ingresa lo que quieras decir";
-  const bounds=cardVisualBounds(chat); const layout=bounds.layout; const visibleBadges=chat.badges.filter(badge=>badge.visible);
-  const badgesWidth=visibleBadges.length?visibleBadges.length*chat.badgeSettings.size+(visibleBadges.length-1)*chat.badgeSettings.spacing:0;
-  const badgeLead=visibleBadges.length?badgesWidth+chat.content.badgeUsernameSpacing:0;
-  const backX=chat.back.offsetX+(layout.width-layout.backWidth)/2; const backY=chat.back.offsetY+(layout.height-layout.backHeight)/2;
-  const headerY=chat.front.paddingY; const usernameY=headerY+(layout.headerHeight-chat.content.usernameFontSize*1.15)/2;
-  const usernameX=chat.front.paddingX+badgeLead;
-  const messageY=chat.content.layout==="stacked"?headerY+layout.headerHeight+chat.content.usernameMessageSpacing:headerY;
-  const inlineMessageX=usernameX+layout.usernameWidth+chat.content.usernameFontSize*.5;
-  const messageWidth=chat.content.layout==="stacked"?layout.contentWidth:Math.max(20,layout.contentWidth-(inlineMessageX-chat.front.paddingX));
-  const shadow=chat.front.shadow; const backShadow=chat.back.shadow;
-  const fontFamily=chat.content.fontFamily==="Roobert"?"Roobert, Inter, Arial, sans-serif":`${chat.content.fontFamily}, Roobert, Inter, Arial, sans-serif`;
-  const gradientTexture=useGradientTexture(chat.back,layout.backWidth,layout.backHeight);
-  return (
-    <Group ref={register} name={`chat-${chat.id}`} x={chat.transform.x} y={chat.transform.y} offsetX={bounds.centerX} offsetY={bounds.centerY} scaleX={chat.transform.scale} scaleY={chat.transform.scale} rotation={chat.transform.rotation} draggable={!locked} visible={chat.visible}
-      onClick={onSelect} onTap={onSelect} onDragStart={onSelect} onDragEnd={event=>!locked&&onPatch({transform:{...chat.transform,x:event.target.x(),y:event.target.y()}})}
-      onTransformEnd={event=>{const node=event.target;onPatch({transform:{...chat.transform,x:locked?chat.transform.x:node.x(),y:locked?chat.transform.y:node.y(),scale:Math.max(.1,node.scaleX()),rotation:node.rotation()}});}}>
-      <Rect x={backX} y={backY} width={layout.backWidth} height={layout.backHeight} scaleX={chat.back.scaleX} scaleY={chat.back.scaleY} offsetX={layout.backWidth*(chat.back.scaleX-1)/(chat.back.scaleX*2||1)} offsetY={layout.backHeight*(chat.back.scaleY-1)/(chat.back.scaleY*2||1)} fill={gradientTexture?undefined:chat.back.backgroundColor} fillPatternImage={gradientTexture??undefined} fillPatternRepeat="no-repeat" fillPatternScaleX={gradientTexture?layout.backWidth/gradientTexture.width:1} fillPatternScaleY={gradientTexture?layout.backHeight/gradientTexture.height:1} opacity={chat.back.opacity} cornerRadius={chat.back.borderRadius}
-        stroke={chat.back.border.enabled?chat.back.border.color:undefined} strokeWidth={chat.back.border.enabled?chat.back.border.thickness:0} shadowColor="#000" shadowEnabled={backShadow.enabled} shadowBlur={backShadow.blur} shadowOpacity={backShadow.opacity} shadowOffsetX={backShadow.x} shadowOffsetY={backShadow.y} />
-      <Rect width={layout.width} height={layout.height} fill={chat.front.backgroundColor} opacity={chat.front.opacity} cornerRadius={chat.front.borderRadius}
-        stroke={chat.front.border.enabled?chat.front.border.color:undefined} strokeWidth={chat.front.border.enabled?chat.front.border.thickness:0} shadowColor="#000" shadowEnabled={shadow.enabled} shadowBlur={shadow.blur} shadowOpacity={shadow.opacity} shadowOffsetX={shadow.x} shadowOffsetY={shadow.y} />
-      <Group clipX={0} clipY={0} clipWidth={layout.width} clipHeight={layout.height}>
-        {visibleBadges.map((badge,index)=><BadgeNode key={badge.id} badge={badge} x={chat.front.paddingX+index*(chat.badgeSettings.size+chat.badgeSettings.spacing)} y={headerY+(layout.headerHeight-chat.badgeSettings.size)/2} size={chat.badgeSettings.size} />)}
-        <Text x={usernameX} y={usernameY} text={chat.content.layout==="inline"?`${previewUsername}:`:previewUsername} fill={chat.content.usernameColor} fontFamily={fontFamily} fontStyle={chat.content.usernameWeight>=700?"bold":"normal"} fontSize={chat.content.usernameFontSize} />
-        <Text x={chat.content.layout==="stacked"?chat.front.paddingX:inlineMessageX} y={messageY} width={messageWidth} text={previewMessage} fill={chat.content.messageColor} fontFamily={fontFamily} fontStyle={chat.content.messageWeight>=700?"bold":"normal"} fontSize={chat.content.messageFontSize} lineHeight={chat.content.lineHeight} align={chat.content.textAlign} wrap="word" />
+function BadgeNode({ badge, x, y, size }: { badge: BadgeInstance; x: number; y: number; size: number }) {
+  const meta = BADGE_META[badge.type];
+  const image = useLoadedImage(badge.customDataUrl ?? meta.asset);
+  if (image) return <KonvaImage image={image} x={x} y={y} width={size} height={size} cornerRadius={Math.max(2, size * 0.18)} />;
+  if (badge.type === "TikTok") {
+    const inner = size * 0.68;
+    const scale = inner / 24;
+    return (
+      <Group x={x} y={y}>
+        <Rect width={size} height={size} fill="#050505" cornerRadius={Math.max(3, size * 0.22)} />
+        <Path data={siTiktok.path} fill="#fff" x={(size - inner) / 2} y={(size - inner) / 2} scaleX={scale} scaleY={scale} />
       </Group>
-      {selected&&layout.overflow?<Circle x={layout.width-10} y={10} radius={5} fill="#F59E0B" />:null}
+    );
+  }
+  return (
+    <Group x={x} y={y}>
+      <Rect width={size} height={size} fill={meta.color} cornerRadius={Math.max(3, size * 0.22)} />
+      <Text width={size} height={size} text={meta.short} fill="#fff" fontFamily="Roobert, Inter, Arial" fontStyle="bold" fontSize={Math.max(7, size * (meta.short.length > 1 ? 0.36 : 0.52))} align="center" verticalAlign="middle" />
     </Group>
   );
 }
 
-function Field({label,children,wide=false}:{label:string;children:React.ReactNode;wide?:boolean}) { return <label className={wide?"field wide":"field"}><span>{label}</span>{children}</label>; }
-function NumberField({label,value,onChange,min=-9999,max=9999,step=1,disabled=false}:{label:string;value:number;onChange:(value:number)=>void;min?:number;max?:number;step?:number;disabled?:boolean}) { return <Field label={label}><div className="number-wrap"><input type="number" value={Number.isFinite(value)?value:0} min={min} max={max} step={step} disabled={disabled} onChange={event=>onChange(Math.min(max,Math.max(min,Number(event.target.value))))}/><span>{step<1?"×":"px"}</span></div></Field>; }
-function ColorField({label,value,onChange,disabled=false}:{label:string;value:string;onChange:(value:string)=>void;disabled?:boolean}) { const safeValue=/^#[0-9A-Fa-f]{6}$/.test(value??"")?value:"#000000";return <Field label={label}><div className="color-control"><input aria-label={label} type="color" value={safeValue} disabled={disabled} onChange={event=>onChange(event.target.value.toUpperCase())}/><input value={safeValue.toUpperCase()} disabled={disabled} onChange={event=>/^#[0-9A-Fa-f]{6}$/.test(event.target.value)&&onChange(event.target.value.toUpperCase())}/></div></Field>; }
-function Toggle({label,checked,onChange,help}:{label:string;checked:boolean;onChange:(checked:boolean)=>void;help?:string}) { return <button type="button" className="toggle-row" onClick={()=>onChange(!checked)}><span><b>{label}</b>{help?<small>{help}</small>:null}</span><i className={checked?"toggle on":"toggle"}><em /></i></button>; }
-function PanelSection({title,children}:{title:string;children:React.ReactNode}) { return <section className="control-section"><h3>{title}</h3><div className="control-grid">{children}</div></section>; }
+function cardVisualBounds(chat: ChatMessage) {
+  const layout = calculateLayout(chat);
+  const backX = chat.back.offsetX + (layout.width - layout.backWidth) / 2;
+  const backY = chat.back.offsetY + (layout.height - layout.backHeight) / 2;
+  const backLeft = backX - (layout.backWidth * (chat.back.scaleX - 1)) / 2;
+  const backTop = backY - (layout.backHeight * (chat.back.scaleY - 1)) / 2;
+  const minX = Math.min(0, backLeft),
+    minY = Math.min(0, backTop);
+  const maxX = Math.max(layout.width, backLeft + layout.backWidth * chat.back.scaleX);
+  const maxY = Math.max(layout.height, backTop + layout.backHeight * chat.back.scaleY);
+  return {
+    layout,
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: maxX - minX,
+    height: maxY - minY,
+    centerX: (minX + maxX) / 2,
+    centerY: (minY + maxY) / 2,
+  };
+}
 
-function matchingBackFill(back:ChatMessage["back"],palette:ReturnType<typeof randomMatchingPalette>) {
-  return back.fillMode==="gradient"
-    ? {...back,backgroundColor:palette.solid,gradientStart:palette.start,gradientAccent:palette.accent,gradientAccent2:palette.accent2,gradientEnd:palette.end}
-    : {...back,backgroundColor:palette.solid};
+const GRADIENT_LABELS: Record<BackGradientType, string> = {
+  linear: "Linear",
+  radial: "Radial",
+  angular: "Angular",
+  diamond: "Diamond",
+  mesh: "Mesh",
+  "shape-blur": "Shape blur",
+  freeform: "Freeform",
+  multiple: "Multiple",
+  aurora: "Aurora",
+};
+const GRADIENT_TYPES = Object.keys(GRADIENT_LABELS) as BackGradientType[];
+const ANIMATION_LABELS: Record<AnimationType, string> = {
+  typing: "Typing",
+  "pop-in": "Pop in",
+  "pop-out": "Pop out",
+  "pop-in-out": "Pop in + out",
+  "fade-in": "Fade in",
+  "fade-out": "Fade out",
+  "slide-up": "Slide up",
+  bounce: "Bounce",
+  pulse: "Pulse",
+  float: "Float",
+  shake: "Shake",
+};
+const ANIMATION_TYPES = Object.keys(ANIMATION_LABELS) as AnimationType[];
+function rgb(hex: string) {
+  const value = hex.replace("#", "");
+  return [parseInt(value.slice(0, 2), 16) || 0, parseInt(value.slice(2, 4), 16) || 0, parseInt(value.slice(4, 6), 16) || 0] as const;
+}
+function rgba(hex: string, alpha: number) {
+  const [r, g, b] = rgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+function lerpColor(a: string, b: string, t: number) {
+  const x = rgb(a),
+    y = rgb(b);
+  return [Math.round(x[0] + (y[0] - x[0]) * t), Math.round(x[1] + (y[1] - x[1]) * t), Math.round(x[2] + (y[2] - x[2]) * t)] as const;
+}
+
+function useGradientTexture(back: ChatMessage["back"], width: number, height: number) {
+  return useMemo(() => {
+    if (back.fillMode !== "gradient" || typeof document === "undefined") return null;
+    const quality = Math.max(1, Math.min(4, 2048 / Math.max(1, width), 1024 / Math.max(1, height)));
+    const w = Math.max(2, Math.ceil(width * quality)),
+      h = Math.max(2, Math.ceil(height * quality));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    const colors = [back.gradientStart ?? back.backgroundColor, back.gradientAccent ?? "#50FA7B", back.gradientAccent2 ?? "#FF79C6", back.gradientEnd ?? "#A970FF"];
+    const gradientType = back.gradientType ?? "linear",
+      gradientAngle = back.gradientAngle ?? 135,
+      angle = ((gradientAngle - 90) * Math.PI) / 180,
+      cx = w / 2,
+      cy = h / 2,
+      length = Math.abs(w * Math.cos(angle)) + Math.abs(h * Math.sin(angle));
+    const linear = () => {
+      const dx = (Math.cos(angle) * length) / 2,
+        dy = (Math.sin(angle) * length) / 2,
+        g = ctx.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
+      g.addColorStop(0, colors[0]);
+      g.addColorStop(0.36, colors[1]);
+      g.addColorStop(0.68, colors[2]);
+      g.addColorStop(1, colors[3]);
+      return g;
+    };
+    const blob = (x: number, y: number, r: number, color: string, alpha = 1) => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, rgba(color, alpha));
+      g.addColorStop(1, rgba(color, 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    };
+    if (gradientType === "linear") {
+      ctx.fillStyle = linear();
+      ctx.fillRect(0, 0, w, h);
+    }
+    if (gradientType === "radial") {
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.72);
+      g.addColorStop(0, colors[0]);
+      g.addColorStop(0.38, colors[1]);
+      g.addColorStop(0.72, colors[2]);
+      g.addColorStop(1, colors[3]);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }
+    if (gradientType === "angular") {
+      const createConic = (
+        ctx as CanvasRenderingContext2D & {
+          createConicGradient?: (angle: number, x: number, y: number) => CanvasGradient;
+        }
+      ).createConicGradient;
+      if (createConic) {
+        const g = createConic.call(ctx, angle, cx, cy);
+        colors.forEach((color, index) => g.addColorStop(index / colors.length, color));
+        g.addColorStop(1, colors[0]);
+        ctx.fillStyle = g;
+      } else ctx.fillStyle = linear();
+      ctx.fillRect(0, 0, w, h);
+    }
+    if (gradientType === "diamond") {
+      const image = ctx.createImageData(w, h),
+        stops = [colors[0], colors[1], colors[2], colors[3]];
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+          const d = Math.min(1, (Math.abs(x - cx) / (w / 2) + Math.abs(y - cy) / (h / 2)) / 2),
+            position = d * (stops.length - 1),
+            index = Math.min(stops.length - 2, Math.floor(position)),
+            mix = position - index,
+            c = lerpColor(stops[index], stops[index + 1], mix),
+            p = (y * w + x) * 4;
+          image.data[p] = c[0];
+          image.data[p + 1] = c[1];
+          image.data[p + 2] = c[2];
+          image.data[p + 3] = 255;
+        }
+      ctx.putImageData(image, 0, 0);
+    }
+    if (gradientType === "mesh") {
+      ctx.fillStyle = colors[3];
+      ctx.fillRect(0, 0, w, h);
+      blob(w * 0.12, h * 0.2, w * 0.7, colors[0]);
+      blob(w * 0.82, h * 0.08, w * 0.62, colors[1], 0.95);
+      blob(w * 0.78, h * 0.94, w * 0.72, colors[2], 0.92);
+      blob(w * 0.28, h * 0.88, w * 0.58, colors[3], 0.72);
+    }
+    if (gradientType === "shape-blur") {
+      ctx.fillStyle = colors[3];
+      ctx.fillRect(0, 0, w, h);
+      ctx.save();
+      ctx.filter = `blur(${Math.max(20, h * 0.13)}px)`;
+      [
+        [w * 0.1, h * 0.1, w * 0.55, h * 0.72, colors[0]],
+        [w * 0.55, -h * 0.15, w * 0.62, h * 0.75, colors[1]],
+        [w * 0.42, h * 0.54, w * 0.7, h * 0.62, colors[2]],
+      ].forEach(([x, y, rw, rh, color]) => {
+        ctx.fillStyle = String(color);
+        ctx.beginPath();
+        ctx.ellipse(Number(x) + Number(rw) / 2, Number(y) + Number(rh) / 2, Number(rw) / 2, Number(rh) / 2, (gradientAngle * Math.PI) / 180, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+    if (gradientType === "freeform") {
+      ctx.fillStyle = colors[3];
+      ctx.fillRect(0, 0, w, h);
+      ctx.save();
+      ctx.filter = `blur(${Math.max(12, h * 0.07)}px)`;
+      colors.slice(0, 3).forEach((color, index) => {
+        const ox = index * w * 0.28 - h * 0.2,
+          oy = index % 2 ? h * 0.34 : -h * 0.12;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(ox, oy + h * 0.45);
+        ctx.bezierCurveTo(ox + w * 0.14, oy - h * 0.18, ox + w * 0.36, oy + h * 0.05, ox + w * 0.42, oy + h * 0.4);
+        ctx.bezierCurveTo(ox + w * 0.52, oy + h * 0.82, ox + w * 0.12, oy + h * 0.92, ox, oy + h * 0.45);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+    if (gradientType === "multiple") {
+      ctx.fillStyle = linear();
+      ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = "screen";
+      blob(w * 0.22, h * 0.25, w * 0.55, colors[1], 0.8);
+      blob(w * 0.82, h * 0.78, w * 0.62, colors[2], 0.75);
+      ctx.globalCompositeOperation = "source-over";
+    }
+    if (gradientType === "aurora") {
+      const base = ctx.createLinearGradient(0, 0, 0, h);
+      base.addColorStop(0, colors[3]);
+      base.addColorStop(1, "#07111F");
+      ctx.fillStyle = base;
+      ctx.fillRect(0, 0, w, h);
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.filter = `blur(${Math.max(10, h * 0.045)}px)`;
+      [colors[0], colors[1], colors[2]].forEach((color, index) => {
+        ctx.strokeStyle = rgba(color, 0.78);
+        ctx.lineWidth = h * (0.16 - index * 0.025);
+        ctx.beginPath();
+        for (let x = -w * 0.1; x <= w * 1.1; x += w / 80) {
+          const y = h * (0.34 + index * 0.17) + Math.sin((x / w) * Math.PI * 2.2 + index * 1.7) * h * 0.13 + (x / w - 0.5) * h * 0.08;
+          if (x === -w * 0.1) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+    return canvas;
+  }, [back.fillMode, back.gradientType, back.gradientStart, back.gradientEnd, back.gradientAccent, back.gradientAccent2, back.gradientAngle, width, height]);
+}
+
+function ChatCard({ chat, selected, locked, onSelect, onPatch, register }: { chat: ChatMessage; selected: boolean; locked: boolean; onSelect: () => void; onPatch: (patch: Partial<ChatMessage>) => void; register: (node: Konva.Group | null) => void }) {
+  const previewUsername = chat.username || "SoySanwich";
+  const previewMessage = chat.message || "Ingresa lo que quieras decir";
+  const bounds = cardVisualBounds(chat);
+  const layout = bounds.layout;
+  const visibleBadges = chat.badges.filter((badge) => badge.visible);
+  const badgesWidth = visibleBadges.length ? visibleBadges.length * chat.badgeSettings.size + (visibleBadges.length - 1) * chat.badgeSettings.spacing : 0;
+  const badgeLead = visibleBadges.length ? badgesWidth + chat.content.badgeUsernameSpacing : 0;
+  const backX = chat.back.offsetX + (layout.width - layout.backWidth) / 2;
+  const backY = chat.back.offsetY + (layout.height - layout.backHeight) / 2;
+  const headerY = chat.front.paddingY;
+  const usernameY = headerY + (layout.headerHeight - chat.content.usernameFontSize * 1.15) / 2;
+  const usernameX = chat.front.paddingX + badgeLead;
+  const messageY = chat.content.layout === "stacked" ? headerY + layout.headerHeight + chat.content.usernameMessageSpacing : headerY;
+  const inlineMessageX = usernameX + layout.usernameWidth + chat.content.usernameFontSize * 0.5;
+  const messageWidth = chat.content.layout === "stacked" ? layout.contentWidth : Math.max(20, layout.contentWidth - (inlineMessageX - chat.front.paddingX));
+  const shadow = chat.front.shadow;
+  const backShadow = chat.back.shadow;
+  const fontFamily = chat.content.fontFamily === "Roobert" ? "Roobert, Inter, Arial, sans-serif" : `${chat.content.fontFamily}, Roobert, Inter, Arial, sans-serif`;
+  const gradientTexture = useGradientTexture(chat.back, layout.backWidth, layout.backHeight);
+  return (
+    <Group
+      ref={register}
+      name={`chat-${chat.id}`}
+      x={chat.transform.x}
+      y={chat.transform.y}
+      offsetX={bounds.centerX}
+      offsetY={bounds.centerY}
+      scaleX={chat.transform.scale}
+      scaleY={chat.transform.scale}
+      rotation={chat.transform.rotation}
+      draggable={!locked}
+      visible={chat.visible}
+      onClick={onSelect}
+      onTap={onSelect}
+      onDragStart={onSelect}
+      onDragEnd={(event) =>
+        !locked &&
+        onPatch({
+          transform: {
+            ...chat.transform,
+            x: event.target.x(),
+            y: event.target.y(),
+          },
+        })
+      }
+      onTransformEnd={(event) => {
+        const node = event.target;
+        onPatch({
+          transform: {
+            ...chat.transform,
+            x: locked ? chat.transform.x : node.x(),
+            y: locked ? chat.transform.y : node.y(),
+            scale: Math.max(0.1, node.scaleX()),
+            rotation: node.rotation(),
+          },
+        });
+      }}
+    >
+      <Rect x={backX} y={backY} width={layout.backWidth} height={layout.backHeight} scaleX={chat.back.scaleX} scaleY={chat.back.scaleY} offsetX={(layout.backWidth * (chat.back.scaleX - 1)) / (chat.back.scaleX * 2 || 1)} offsetY={(layout.backHeight * (chat.back.scaleY - 1)) / (chat.back.scaleY * 2 || 1)} fill={gradientTexture ? undefined : chat.back.backgroundColor} fillPatternImage={gradientTexture ?? undefined} fillPatternRepeat="no-repeat" fillPatternScaleX={gradientTexture ? layout.backWidth / gradientTexture.width : 1} fillPatternScaleY={gradientTexture ? layout.backHeight / gradientTexture.height : 1} opacity={chat.back.opacity} cornerRadius={chat.back.borderRadius} stroke={chat.back.border.enabled ? chat.back.border.color : undefined} strokeWidth={chat.back.border.enabled ? chat.back.border.thickness : 0} shadowColor="#000" shadowEnabled={backShadow.enabled} shadowBlur={backShadow.blur} shadowOpacity={backShadow.opacity} shadowOffsetX={backShadow.x} shadowOffsetY={backShadow.y} />
+      <Rect width={layout.width} height={layout.height} fill={chat.front.backgroundColor} opacity={chat.front.opacity} cornerRadius={chat.front.borderRadius} stroke={chat.front.border.enabled ? chat.front.border.color : undefined} strokeWidth={chat.front.border.enabled ? chat.front.border.thickness : 0} shadowColor="#000" shadowEnabled={shadow.enabled} shadowBlur={shadow.blur} shadowOpacity={shadow.opacity} shadowOffsetX={shadow.x} shadowOffsetY={shadow.y} />
+      <Group clipX={0} clipY={0} clipWidth={layout.width} clipHeight={layout.height}>
+        {visibleBadges.map((badge, index) => (
+          <BadgeNode key={badge.id} badge={badge} x={chat.front.paddingX + index * (chat.badgeSettings.size + chat.badgeSettings.spacing)} y={headerY + (layout.headerHeight - chat.badgeSettings.size) / 2} size={chat.badgeSettings.size} />
+        ))}
+        <Text name="username-text" x={usernameX} y={usernameY} text={chat.content.layout === "inline" ? `${previewUsername}:` : previewUsername} fill={chat.content.usernameColor} fontFamily={fontFamily} fontStyle={chat.content.usernameWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.usernameFontSize} />
+        <Text name="message-text" x={chat.content.layout === "stacked" ? chat.front.paddingX : inlineMessageX} y={messageY} width={messageWidth} text={previewMessage} fill={chat.content.messageColor} fontFamily={fontFamily} fontStyle={chat.content.messageWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.messageFontSize} lineHeight={chat.content.lineHeight} align={chat.content.textAlign} wrap="word" />
+      </Group>
+      {selected && layout.overflow ? <Circle x={layout.width - 10} y={10} radius={5} fill="#F59E0B" /> : null}
+    </Group>
+  );
+}
+
+function Field({ label, children, wide = false }: { label: string; children: React.ReactNode; wide?: boolean }) {
+  return (
+    <label className={wide ? "field wide" : "field"}>
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+function NumberField({ label, value, onChange, min = -9999, max = 9999, step = 1, disabled = false }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; step?: number; disabled?: boolean }) {
+  return (
+    <Field label={label}>
+      <div className="number-wrap">
+        <input type="number" value={Number.isFinite(value) ? value : 0} min={min} max={max} step={step} disabled={disabled} onChange={(event) => onChange(Math.min(max, Math.max(min, Number(event.target.value))))} />
+        <span>{step < 1 ? "×" : "px"}</span>
+      </div>
+    </Field>
+  );
+}
+function ColorField({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
+  const safeValue = /^#[0-9A-Fa-f]{6}$/.test(value ?? "") ? value : "#000000";
+  return (
+    <Field label={label}>
+      <div className="color-control">
+        <input aria-label={label} type="color" value={safeValue} disabled={disabled} onChange={(event) => onChange(event.target.value.toUpperCase())} />
+        <input value={safeValue.toUpperCase()} disabled={disabled} onChange={(event) => /^#[0-9A-Fa-f]{6}$/.test(event.target.value) && onChange(event.target.value.toUpperCase())} />
+      </div>
+    </Field>
+  );
+}
+function Toggle({ label, checked, onChange, help }: { label: string; checked: boolean; onChange: (checked: boolean) => void; help?: string }) {
+  return (
+    <button type="button" className="toggle-row" onClick={() => onChange(!checked)}>
+      <span>
+        <b>{label}</b>
+        {help ? <small>{help}</small> : null}
+      </span>
+      <i className={checked ? "toggle on" : "toggle"}>
+        <em />
+      </i>
+    </button>
+  );
+}
+function PanelSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="control-section">
+      <h3>{title}</h3>
+      <div className="control-grid">{children}</div>
+    </section>
+  );
+}
+
+function matchingBackFill(back: ChatMessage["back"], palette: ReturnType<typeof randomMatchingPalette>) {
+  return back.fillMode === "gradient"
+    ? {
+        ...back,
+        backgroundColor: palette.solid,
+        gradientStart: palette.start,
+        gradientAccent: palette.accent,
+        gradientAccent2: palette.accent2,
+        gradientEnd: palette.end,
+      }
+    : { ...back, backgroundColor: palette.solid };
 }
 
 export default function TwitchEditor() {
-  const [project,dispatch]=useReducer(reducer,undefined,loadProject); const [tab,setTab]=useState<InspectorTab>("content");
-  const [viewport,setViewport]=useState({width:900,height:560}); const [toast,setToast]=useState(""); const [storageError,setStorageError]=useState(false);
-  const [presetName,setPresetName]=useState("");
-  const stageRef=useRef<Konva.Stage|null>(null); const transformerRef=useRef<Konva.Transformer|null>(null); const canvasWrapRef=useRef<HTMLDivElement|null>(null); const groupRefs=useRef<Record<string,Konva.Group>>({});
-  const selected=project.messages.find(message=>message.id===project.selectedId)??project.messages[0];
-  const currentLayout=calculateLayout(selected); const selectedBounds=cardVisualBounds(selected);
-  const radians=Math.abs(selected.transform.rotation)*Math.PI/180;
-  const rotatedWidth=(Math.abs(selectedBounds.width*Math.cos(radians))+Math.abs(selectedBounds.height*Math.sin(radians)))*selected.transform.scale;
-  const rotatedHeight=(Math.abs(selectedBounds.width*Math.sin(radians))+Math.abs(selectedBounds.height*Math.cos(radians)))*selected.transform.scale;
-  const stageWidth=project.canvas.previewMode==="message"?Math.ceil(rotatedWidth+project.canvas.previewPadding*2):project.canvas.width;
-  const stageHeight=project.canvas.previewMode==="message"?Math.ceil(rotatedHeight+project.canvas.previewPadding*2):project.canvas.height;
-  const displayScale=Math.max(.05,Math.min(1.5,(viewport.width-24)/stageWidth,(viewport.height-24)/stageHeight));
-  const showToast=(message:string)=>{setToast(message);window.setTimeout(()=>setToast(""),2200);};
-  const patchSelected=(patch:Partial<ChatMessage>)=>dispatch({type:"message",id:selected.id,patch});
+  const [project, dispatch] = useReducer(reducer, undefined, loadProject);
+  const [tab, setTab] = useState<InspectorTab>("content");
+  const [viewport, setViewport] = useState({ width: 900, height: 560 });
+  const [toast, setToast] = useState("");
+  const [storageError, setStorageError] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [isAnimationPlaying, setIsAnimationPlaying] = useState(false);
+  const [isVideoExporting, setIsVideoExporting] = useState(false);
+  const [videoExportStatus, setVideoExportStatus] = useState("");
+  const [videoExportProgress, setVideoExportProgress] = useState(0);
+  const stageRef = useRef<Konva.Stage | null>(null);
+  const transformerRef = useRef<Konva.Transformer | null>(null);
+  const canvasWrapRef = useRef<HTMLDivElement | null>(null);
+  const groupRefs = useRef<Record<string, Konva.Group>>({});
+  const animationCleanupRef = useRef<(() => void) | null>(null);
+  const ffmpegRef = useRef<import("@ffmpeg/ffmpeg").FFmpeg | null>(null);
+  const selected = project.messages.find((message) => message.id === project.selectedId) ?? project.messages[0];
+  const currentLayout = calculateLayout(selected);
+  const selectedBounds = cardVisualBounds(selected);
+  const radians = (Math.abs(selected.transform.rotation) * Math.PI) / 180;
+  const rotatedWidth = (Math.abs(selectedBounds.width * Math.cos(radians)) + Math.abs(selectedBounds.height * Math.sin(radians))) * selected.transform.scale;
+  const rotatedHeight = (Math.abs(selectedBounds.width * Math.sin(radians)) + Math.abs(selectedBounds.height * Math.cos(radians))) * selected.transform.scale;
+  const stageWidth = project.canvas.previewMode === "message" ? Math.ceil(rotatedWidth + project.canvas.previewPadding * 2) : project.canvas.width;
+  const stageHeight = project.canvas.previewMode === "message" ? Math.ceil(rotatedHeight + project.canvas.previewPadding * 2) : project.canvas.height;
+  const displayScale = Math.max(0.05, Math.min(1.5, (viewport.width - 24) / stageWidth, (viewport.height - 24) / stageHeight));
+  const showToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 2200);
+  };
+  const patchSelected = (patch: Partial<ChatMessage>) => dispatch({ type: "message", id: selected.id, patch });
 
-  useEffect(()=>{const target=canvasWrapRef.current;if(!target)return;const update=()=>setViewport({width:target.clientWidth,height:target.clientHeight});update();const observer=new ResizeObserver(update);observer.observe(target);return()=>observer.disconnect();},[]);
-  useEffect(()=>{const timer=window.setTimeout(()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(project));setStorageError(false);}catch{setStorageError(true);}},350);return()=>window.clearTimeout(timer);},[project]);
-  useEffect(()=>{const transformer=transformerRef.current;const node=groupRefs.current[selected.id];if(transformer){transformer.nodes(node&&selected.visible?[node]:[]);transformer.getLayer()?.batchDraw();}},[selected.id,selected.visible,project.messages]);
+  useEffect(() => {
+    const target = canvasWrapRef.current;
+    if (!target) return;
+    const update = () => setViewport({ width: target.clientWidth, height: target.clientHeight });
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+        setStorageError(false);
+      } catch {
+        setStorageError(true);
+      }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [project]);
+  useEffect(() => {
+    const transformer = transformerRef.current;
+    const node = groupRefs.current[selected.id];
+    if (transformer) {
+      transformer.nodes(node && selected.visible ? [node] : []);
+      transformer.getLayer()?.batchDraw();
+    }
+  }, [selected.id, selected.visible, project.messages]);
+  useEffect(() => () => animationCleanupRef.current?.(), [selected.id]);
 
-  const patchFront=(patch:Partial<ChatMessage["front"]>)=>{const front={...selected.front,...patch};const back=front.borderRadius!==selected.front.borderRadius&&selected.back.linkBorderRadius?{...selected.back,borderRadius:front.borderRadius}:selected.back;patchSelected({front,back});};
-  const patchBack=(patch:Partial<ChatMessage["back"]>)=>patchSelected({back:{...selected.back,...patch}});
-  const patchContent=(patch:Partial<ChatMessage["content"]>)=>patchSelected({content:{...selected.content,...patch}});
-  const patchBadgeSettings=(patch:Partial<ChatMessage["badgeSettings"]>)=>patchSelected({badgeSettings:{...selected.badgeSettings,...patch}});
+  const patchFront = (patch: Partial<ChatMessage["front"]>) => {
+    const front = { ...selected.front, ...patch };
+    const back = front.borderRadius !== selected.front.borderRadius && selected.back.linkBorderRadius ? { ...selected.back, borderRadius: front.borderRadius } : selected.back;
+    patchSelected({ front, back });
+  };
+  const patchBack = (patch: Partial<ChatMessage["back"]>) => patchSelected({ back: { ...selected.back, ...patch } });
+  const patchContent = (patch: Partial<ChatMessage["content"]>) => patchSelected({ content: { ...selected.content, ...patch } });
+  const patchBadgeSettings = (patch: Partial<ChatMessage["badgeSettings"]>) => patchSelected({ badgeSettings: { ...selected.badgeSettings, ...patch } });
+  const patchAnimation = (patch: Partial<ChatMessage["animation"]>) => patchSelected({ animation: { ...selected.animation, ...patch } });
 
-  const newMessage=()=>{const next=createMessage(project.messages.length,project.canvas.randomizeOnNew);dispatch({type:"messages",messages:[...project.messages,next],selectedId:next.id});showToast("New chat message added");};
-  const duplicateMessage=()=>{const next:ChatMessage=JSON.parse(JSON.stringify(selected));next.id=uid();next.username=`${selected.username} copy`;next.transform={...next.transform,x:next.transform.x+24,y:next.transform.y+24};next.badges=next.badges.map(b=>({...b,id:uid()}));dispatch({type:"messages",messages:[...project.messages,next],selectedId:next.id});showToast("Message duplicated");};
-  const deleteMessage=()=>{if(project.messages.length===1){showToast("Keep at least one message");return;}const index=project.messages.findIndex(m=>m.id===selected.id);const messages=project.messages.filter(m=>m.id!==selected.id);dispatch({type:"messages",messages,selectedId:messages[Math.max(0,index-1)].id});};
-  const reorder=(from:number,to:number)=>{if(to<0||to>=project.messages.length||from===to)return;const messages=[...project.messages];const [item]=messages.splice(from,1);messages.splice(to,0,item);dispatch({type:"messages",messages});};
-  const randomizeStyle=()=>{const front={...selected.front};let back={...selected.back};const content={...selected.content};const matchingPalette=project.randomize.backCardColor?randomMatchingPalette(front.backgroundColor):null;if(project.randomize.usernameColor){content.usernameColor=matchingPalette?.username??randomUsernameColor(front.backgroundColor);content.usernameColorMode="random";}if(matchingPalette)back=matchingBackFill(back,matchingPalette);if(project.randomize.cardOffset){back.offsetX=Math.round(6+Math.random()*24);back.offsetY=Math.round(8+Math.random()*24);}if(project.randomize.borderRadius){front.borderRadius=Math.round(16+Math.random()*24);if(back.linkBorderRadius)back.borderRadius=front.borderRadius;}patchSelected({front,back,content});showToast(matchingPalette&&project.randomize.usernameColor?"Matching palette randomized":"Style randomized");};
-  const setOrientation=(orientation:"horizontal"|"vertical")=>dispatch({type:"project",patch:{canvas:{...project.canvas,orientation,width:orientation==="horizontal"?1920:1080,height:orientation==="horizontal"?1080:1920}}});
-  const applyStylePreset=(name:"Reference"|"Compact"|"Big Creator"|"Minimal")=>{dispatch({type:"replace-message",message:applyPreset(selected,name)});showToast(`${name} preset applied`);};
-  const applyBackPreset=(name:"Reference Blue"|"Twitch"|"Sunset"|"Aurora"|"Mono")=>{const presets={"Reference Blue":{fillMode:"solid" as const,backgroundColor:"#70AFFF",gradientType:"linear" as const,gradientStart:"#70AFFF",gradientAccent:"#8BC5FF",gradientAccent2:"#A970FF",gradientEnd:"#5C9DFF",gradientAngle:135},Twitch:{fillMode:"gradient" as const,backgroundColor:"#9147FF",gradientType:"angular" as const,gradientStart:"#9147FF",gradientAccent:"#C59BFF",gradientAccent2:"#FF79C6",gradientEnd:"#5C16C5",gradientAngle:135},Sunset:{fillMode:"gradient" as const,backgroundColor:"#FF8A65",gradientType:"multiple" as const,gradientStart:"#FFB86C",gradientAccent:"#FFD866",gradientAccent2:"#FF79C6",gradientEnd:"#FF5C8A",gradientAngle:120},Aurora:{fillMode:"gradient" as const,backgroundColor:"#07111F",gradientType:"aurora" as const,gradientStart:"#50FA7B",gradientAccent:"#4DD0E1",gradientAccent2:"#A970FF",gradientEnd:"#081426",gradientAngle:110},Mono:{fillMode:"gradient" as const,backgroundColor:"#666666",gradientType:"diamond" as const,gradientStart:"#E5E5E5",gradientAccent:"#9A9A9A",gradientAccent2:"#5A5A5A",gradientEnd:"#202020",gradientAngle:135}};patchBack(presets[name]);showToast(`${name} back preset applied`);};
-  const centerSelected=()=>patchSelected({transform:{...selected.transform,x:project.canvas.width/2,y:project.canvas.height/2}});
+  const newMessage = () => {
+    const next = createMessage(project.messages.length, project.canvas.randomizeOnNew);
+    dispatch({
+      type: "messages",
+      messages: [...project.messages, next],
+      selectedId: next.id,
+    });
+    showToast("New chat message added");
+  };
+  const duplicateMessage = () => {
+    const next: ChatMessage = JSON.parse(JSON.stringify(selected));
+    next.id = uid();
+    next.username = `${selected.username} copy`;
+    next.transform = {
+      ...next.transform,
+      x: next.transform.x + 24,
+      y: next.transform.y + 24,
+    };
+    next.badges = next.badges.map((b) => ({ ...b, id: uid() }));
+    dispatch({
+      type: "messages",
+      messages: [...project.messages, next],
+      selectedId: next.id,
+    });
+    showToast("Message duplicated");
+  };
+  const deleteMessage = () => {
+    if (project.messages.length === 1) {
+      showToast("Keep at least one message");
+      return;
+    }
+    const index = project.messages.findIndex((m) => m.id === selected.id);
+    const messages = project.messages.filter((m) => m.id !== selected.id);
+    dispatch({
+      type: "messages",
+      messages,
+      selectedId: messages[Math.max(0, index - 1)].id,
+    });
+  };
+  const reorder = (from: number, to: number) => {
+    if (to < 0 || to >= project.messages.length || from === to) return;
+    const messages = [...project.messages];
+    const [item] = messages.splice(from, 1);
+    messages.splice(to, 0, item);
+    dispatch({ type: "messages", messages });
+  };
+  const randomizeStyle = () => {
+    const front = { ...selected.front };
+    let back = { ...selected.back };
+    const content = { ...selected.content };
+    const matchingPalette = project.randomize.backCardColor ? randomMatchingPalette(front.backgroundColor) : null;
+    if (project.randomize.usernameColor) {
+      content.usernameColor = matchingPalette?.username ?? randomUsernameColor(front.backgroundColor);
+      content.usernameColorMode = "random";
+    }
+    if (matchingPalette) back = matchingBackFill(back, matchingPalette);
+    if (project.randomize.cardOffset) {
+      back.offsetX = Math.round(6 + Math.random() * 24);
+      back.offsetY = Math.round(8 + Math.random() * 24);
+    }
+    if (project.randomize.borderRadius) {
+      front.borderRadius = Math.round(16 + Math.random() * 24);
+      if (back.linkBorderRadius) back.borderRadius = front.borderRadius;
+    }
+    patchSelected({ front, back, content });
+    showToast(matchingPalette && project.randomize.usernameColor ? "Matching palette randomized" : "Style randomized");
+  };
+  const setOrientation = (orientation: "horizontal" | "vertical") =>
+    dispatch({
+      type: "project",
+      patch: {
+        canvas: {
+          ...project.canvas,
+          orientation,
+          width: orientation === "horizontal" ? 1920 : 1080,
+          height: orientation === "horizontal" ? 1080 : 1920,
+        },
+      },
+    });
+  const applyStylePreset = (name: "Reference" | "Compact" | "Big Creator" | "Minimal") => {
+    dispatch({ type: "replace-message", message: applyPreset(selected, name) });
+    showToast(`${name} preset applied`);
+  };
+  const applyBackPreset = (name: "Reference Blue" | "Twitch" | "Sunset" | "Aurora" | "Mono") => {
+    const presets = {
+      "Reference Blue": {
+        fillMode: "solid" as const,
+        backgroundColor: "#70AFFF",
+        gradientType: "linear" as const,
+        gradientStart: "#70AFFF",
+        gradientAccent: "#8BC5FF",
+        gradientAccent2: "#A970FF",
+        gradientEnd: "#5C9DFF",
+        gradientAngle: 135,
+      },
+      Twitch: {
+        fillMode: "gradient" as const,
+        backgroundColor: "#9147FF",
+        gradientType: "angular" as const,
+        gradientStart: "#9147FF",
+        gradientAccent: "#C59BFF",
+        gradientAccent2: "#FF79C6",
+        gradientEnd: "#5C16C5",
+        gradientAngle: 135,
+      },
+      Sunset: {
+        fillMode: "gradient" as const,
+        backgroundColor: "#FF8A65",
+        gradientType: "multiple" as const,
+        gradientStart: "#FFB86C",
+        gradientAccent: "#FFD866",
+        gradientAccent2: "#FF79C6",
+        gradientEnd: "#FF5C8A",
+        gradientAngle: 120,
+      },
+      Aurora: {
+        fillMode: "gradient" as const,
+        backgroundColor: "#07111F",
+        gradientType: "aurora" as const,
+        gradientStart: "#50FA7B",
+        gradientAccent: "#4DD0E1",
+        gradientAccent2: "#A970FF",
+        gradientEnd: "#081426",
+        gradientAngle: 110,
+      },
+      Mono: {
+        fillMode: "gradient" as const,
+        backgroundColor: "#666666",
+        gradientType: "diamond" as const,
+        gradientStart: "#E5E5E5",
+        gradientAccent: "#9A9A9A",
+        gradientAccent2: "#5A5A5A",
+        gradientEnd: "#202020",
+        gradientAngle: 135,
+      },
+    };
+    patchBack(presets[name]);
+    showToast(`${name} back preset applied`);
+  };
+  const centerSelected = () =>
+    patchSelected({
+      transform: {
+        ...selected.transform,
+        x: project.canvas.width / 2,
+        y: project.canvas.height / 2,
+      },
+    });
 
-  const addBadge=(type:BadgeType)=>{const meta=BADGE_META[type];patchSelected({badges:[...selected.badges,{id:uid(),type,label:type,visible:true,...(type==="Custom"?{}:{})}]});showToast(`${meta.short} badge added`);};
-  const updateBadge=(id:string,patch:Partial<BadgeInstance>)=>patchSelected({badges:selected.badges.map(b=>b.id===id?{...b,...patch}:b)});
-  const removeBadge=(id:string)=>patchSelected({badges:selected.badges.filter(b=>b.id!==id)});
-  const reorderBadge=(from:number,to:number)=>{if(to<0||to>=selected.badges.length)return;const badges=[...selected.badges];const [badge]=badges.splice(from,1);badges.splice(to,0,badge);patchSelected({badges});};
-  const uploadBadge=async(file?:File)=>{if(!file)return;if(file.size>1_500_000){showToast("Badge must be under 1.5 MB");return;}if(!["image/png","image/webp","image/svg+xml"].includes(file.type)){showToast("Use PNG, WebP or SVG");return;}try{let dataUrl:string;if(file.type==="image/svg+xml"){const clean=sanitizeSvg(await file.text());dataUrl=`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(clean)))}`;}else dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=reject;reader.readAsDataURL(file);});patchSelected({badges:[...selected.badges,{id:uid(),type:"Custom",label:file.name,visible:true,customDataUrl:dataUrl}]});showToast("Custom badge added");}catch{showToast("That badge could not be read");}};
+  const addBadge = (type: BadgeType) => {
+    const meta = BADGE_META[type];
+    patchSelected({
+      badges: [
+        ...selected.badges,
+        {
+          id: uid(),
+          type,
+          label: type,
+          visible: true,
+          ...(type === "Custom" ? {} : {}),
+        },
+      ],
+    });
+    showToast(`${meta.short} badge added`);
+  };
+  const updateBadge = (id: string, patch: Partial<BadgeInstance>) =>
+    patchSelected({
+      badges: selected.badges.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+    });
+  const removeBadge = (id: string) => patchSelected({ badges: selected.badges.filter((b) => b.id !== id) });
+  const reorderBadge = (from: number, to: number) => {
+    if (to < 0 || to >= selected.badges.length) return;
+    const badges = [...selected.badges];
+    const [badge] = badges.splice(from, 1);
+    badges.splice(to, 0, badge);
+    patchSelected({ badges });
+  };
+  const uploadBadge = async (file?: File) => {
+    if (!file) return;
+    if (file.size > 1_500_000) {
+      showToast("Badge must be under 1.5 MB");
+      return;
+    }
+    if (!["image/png", "image/webp", "image/svg+xml"].includes(file.type)) {
+      showToast("Use PNG, WebP or SVG");
+      return;
+    }
+    try {
+      let dataUrl: string;
+      if (file.type === "image/svg+xml") {
+        const clean = sanitizeSvg(await file.text());
+        dataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(clean)))}`;
+      } else
+        dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      patchSelected({
+        badges: [
+          ...selected.badges,
+          {
+            id: uid(),
+            type: "Custom",
+            label: file.name,
+            visible: true,
+            customDataUrl: dataUrl,
+          },
+        ],
+      });
+      showToast("Custom badge added");
+    } catch {
+      showToast("That badge could not be read");
+    }
+  };
 
-  const downloadPng=(mode=project.export.mode)=>{const exportScale=4;const capture=()=>{const stage=stageRef.current;if(!stage)return;const liveScale=stage.getLayers()[0]?.scaleX()||displayScale;const transformer=transformerRef.current;transformer?.visible(false);const previous=project.messages.map(message=>({id:message.id,visible:groupRefs.current[message.id]?.visible()??false}));let config:Konva.StageConfig & {pixelRatio:number;mimeType:string;x?:number;y?:number;width?:number;height?:number}={pixelRatio:exportScale/liveScale,mimeType:"image/png"};
-      if(mode==="message"){Object.entries(groupRefs.current).forEach(([id,node])=>node.visible(id===selected.id));const node=groupRefs.current[selected.id];if(!node)return;const rect=node.getClientRect({relativeTo:stage});const pad=project.export.padding*liveScale;config={...config,x:rect.x-pad,y:rect.y-pad,width:rect.width+pad*2,height:rect.height+pad*2};}
-      stage.batchDraw();const url=stage.toDataURL(config);previous.forEach(item=>groupRefs.current[item.id]?.visible(item.visible));transformer?.visible(true);stage.batchDraw();const anchor=document.createElement("a");anchor.href=url;anchor.download=`${safeFilename(selected.username||"SoySanwich")}-${mode}-${project.canvas.orientation}-${exportScale}x.png`;anchor.click();showToast(mode==="full"?"Full canvas PNG exported at maximum quality":"Transparent message PNG exported at maximum quality");};
-    const targetPreview=mode==="message"?"message":"canvas";if(project.canvas.previewMode!==targetPreview){dispatch({type:"project",patch:{canvas:{...project.canvas,previewMode:targetPreview}}});window.setTimeout(capture,120);}else capture();};
+  const downloadPng = (mode = project.export.mode) => {
+    const exportScale = 4;
+    const capture = () => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const liveScale = stage.getLayers()[0]?.scaleX() || displayScale;
+      const transformer = transformerRef.current;
+      transformer?.visible(false);
+      const previous = project.messages.map((message) => ({
+        id: message.id,
+        visible: groupRefs.current[message.id]?.visible() ?? false,
+      }));
+      let config: Konva.StageConfig & {
+        pixelRatio: number;
+        mimeType: string;
+        x?: number;
+        y?: number;
+        width?: number;
+        height?: number;
+      } = { pixelRatio: exportScale / liveScale, mimeType: "image/png" };
+      if (mode === "message") {
+        Object.entries(groupRefs.current).forEach(([id, node]) => node.visible(id === selected.id));
+        const node = groupRefs.current[selected.id];
+        if (!node) return;
+        const rect = node.getClientRect({ relativeTo: stage });
+        const pad = project.export.padding * liveScale;
+        config = {
+          ...config,
+          x: rect.x - pad,
+          y: rect.y - pad,
+          width: rect.width + pad * 2,
+          height: rect.height + pad * 2,
+        };
+      }
+      stage.batchDraw();
+      const url = stage.toDataURL(config);
+      previous.forEach((item) => groupRefs.current[item.id]?.visible(item.visible));
+      transformer?.visible(true);
+      stage.batchDraw();
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${safeFilename(selected.username || "SoySanwich")}-${mode}-${project.canvas.orientation}-${exportScale}x.png`;
+      anchor.click();
+      showToast(mode === "full" ? "Full canvas PNG exported at maximum quality" : "Transparent message PNG exported at maximum quality");
+    };
+    const targetPreview = mode === "message" ? "message" : "canvas";
+    if (project.canvas.previewMode !== targetPreview) {
+      dispatch({
+        type: "project",
+        patch: { canvas: { ...project.canvas, previewMode: targetPreview } },
+      });
+      window.setTimeout(capture, 120);
+    } else capture();
+  };
 
-  const resetProject=()=>{if(window.confirm("Reset the entire project? This cannot be undone.")){localStorage.removeItem(STORAGE_KEY);dispatch({type:"reset",project:createProject()});showToast("Project reset");}};
-  const copyCurrentStyle=()=>{dispatch({type:"project",patch:{styleClipboard:copyStyle(selected)}});showToast("Style copied");};
-  const pasteCurrentStyle=()=>{if(!project.styleClipboard){showToast("Copy a style first");return;}dispatch({type:"replace-message",message:pasteStyle(selected,project.styleClipboard)});showToast("Style pasted");};
-  const saveCurrentPreset=()=>{const name=presetName.trim().slice(0,40);if(!name){showToast("Name your preset first");return;}const existing=project.savedPresets.find(preset=>preset.name.toLocaleLowerCase()===name.toLocaleLowerCase());const preset={id:existing?.id??uid(),name,createdAt:existing?.createdAt??Date.now(),style:copyStyle(selected)};const savedPresets=existing?project.savedPresets.map(item=>item.id===existing.id?preset:item):[...project.savedPresets,preset];dispatch({type:"project",patch:{savedPresets}});setPresetName("");showToast(existing?`${name} preset updated`:`${name} preset saved`);};
-  const applySavedPreset=(id:string)=>{const preset=project.savedPresets.find(item=>item.id===id);if(!preset)return;dispatch({type:"replace-message",message:pasteStyle(selected,preset.style)});showToast(`${preset.name} preset applied`);};
-  const deleteSavedPreset=(id:string)=>{dispatch({type:"project",patch:{savedPresets:project.savedPresets.filter(item=>item.id!==id)}});showToast("Preset deleted");};
-  const randomizeBackPalette=()=>{const palette=randomMatchingPalette(selected.front.backgroundColor);patchSelected({back:matchingBackFill(selected.back,palette),content:{...selected.content,usernameColor:palette.username,usernameColorMode:"random"}});showToast("Matching palette applied");};
+  const applyAnimationState = (
+    node: Konva.Group,
+    chat: ChatMessage,
+    elapsedMs: number,
+    origin: {
+      x: number;
+      y: number;
+      scaleX: number;
+      scaleY: number;
+      opacity: number;
+    },
+    messageNode?: Konva.Text,
+  ) => {
+    const frame = animationFrame(chat.animation, elapsedMs);
+    node.position({ x: origin.x + frame.offsetX, y: origin.y + frame.offsetY });
+    node.scale({
+      x: origin.scaleX * frame.scale,
+      y: origin.scaleY * frame.scale,
+    });
+    node.opacity(origin.opacity * frame.opacity);
+    if (messageNode) {
+      const fullText = chat.message || "Ingresa lo que quieras decir";
+      messageNode.text(fullText.slice(0, Math.ceil(fullText.length * frame.typedProgress)));
+    }
+  };
 
-  const tabs:{id:InspectorTab;label:string}[]=[{id:"content",label:"Content"},{id:"front",label:"Front Card"},{id:"back",label:"Back Card"},{id:"badges",label:"Badges"},{id:"transform",label:"Transform"},{id:"export",label:"Export"}];
-  const centeredMessage=(chat:ChatMessage)=>project.canvas.previewMode==="message"?({...chat,transform:{...chat.transform,x:stageWidth/2,y:stageHeight/2}}):chat;
-  const previewMessages=project.canvas.previewMode==="message"?[selected]:project.messages;
-  const previewBackgroundClass=project.canvas.previewMode==="message"?`preview-bg-${project.canvas.previewBackgroundPreset}`:"";
-  const previewBackgroundStyle=project.canvas.previewMode==="message"&&project.canvas.previewBackgroundPreset==="custom"?{backgroundColor:project.canvas.previewBackgroundColor}:undefined;
+  const stopAnimationPreview = () => animationCleanupRef.current?.();
+  const previewAnimation = () => {
+    if (isAnimationPlaying) {
+      stopAnimationPreview();
+      return;
+    }
+    const node = groupRefs.current[selected.id];
+    if (!node) return;
+    const transformer = transformerRef.current;
+    const messageNode = node.findOne(".message-text") as Konva.Text | undefined;
+    const originalText = messageNode?.text() ?? "";
+    const origin = {
+      x: node.x(),
+      y: node.y(),
+      scaleX: node.scaleX(),
+      scaleY: node.scaleY(),
+      opacity: node.opacity(),
+    };
+    let frameId = 0,
+      active = true;
+    const started = performance.now();
+    transformer?.visible(false);
+    setIsAnimationPlaying(true);
+    const cleanup = () => {
+      if (!active) return;
+      active = false;
+      cancelAnimationFrame(frameId);
+      node.position({ x: origin.x, y: origin.y });
+      node.scale({ x: origin.scaleX, y: origin.scaleY });
+      node.opacity(origin.opacity);
+      messageNode?.text(originalText);
+      transformer?.visible(true);
+      node.getLayer()?.batchDraw();
+      animationCleanupRef.current = null;
+      setIsAnimationPlaying(false);
+    };
+    animationCleanupRef.current = cleanup;
+    const total = animationTotalMs(selected.animation);
+    const tick = (now: number) => {
+      if (!active) return;
+      const elapsed = now - started;
+      if (elapsed >= total && !selected.animation.loopPreview) {
+        applyAnimationState(node, selected, total, origin, messageNode);
+        node.getLayer()?.batchDraw();
+        window.setTimeout(cleanup, 90);
+        return;
+      }
+      applyAnimationState(node, selected, elapsed % total, origin, messageNode);
+      node.getLayer()?.batchDraw();
+      frameId = requestAnimationFrame(tick);
+    };
+    frameId = requestAnimationFrame(tick);
+  };
 
-  return <main className="editor-shell">
-    <header className="editor-topbar">
-      <div className="editor-brand"><span><BrandIcon icon={siTwitch} size={19} color="#fff"/></span><div><small>CHAT CARD STUDIO</small><h1>Twitch Chat Card Generator</h1></div></div>
-      <div className="top-actions">
-        {project.canvas.previewMode==="canvas"?<div className="orientation-switch"><button className={project.canvas.orientation==="horizontal"?"active":""} onClick={()=>setOrientation("horizontal")}>Horizontal</button><button className={project.canvas.orientation==="vertical"?"active":""} onClick={()=>setOrientation("vertical")}>Vertical</button></div>:null}
-        <button className="tool-button" onClick={newMessage}><Plus size={15}/>New message</button>
-        <button className="tool-button" onClick={randomizeStyle}><Shuffle size={14}/>Randomize style</button>
-        <button className="primary-button" onClick={()=>downloadPng()}><Download size={15}/>Export PNG</button>
-      </div>
-    </header>
-    <div className="editor-workspace">
-      <section className="canvas-pane">
-        <div className="pane-meta"><span>PREVIEW</span><div className="preview-switch"><button className={project.canvas.previewMode==="message"?"active":""} onClick={()=>dispatch({type:"project",patch:{canvas:{...project.canvas,previewMode:"message"}}})}>Solo mensaje</button><button className={project.canvas.previewMode==="canvas"?"active":""} onClick={()=>dispatch({type:"project",patch:{canvas:{...project.canvas,previewMode:"canvas"}}})}>Canvas completo</button>{project.canvas.previewMode==="canvas"?<button className="center-preview" onClick={centerSelected}>Centrar mensaje</button>:null}</div><span>{stageWidth} × {stageHeight} · {Math.round(displayScale*100)}%</span></div>
-        <div className={`canvas-wrap ${project.canvas.orientation} ${project.canvas.previewMode==="message"?"message-preview":""}`} ref={canvasWrapRef}>
-          <div className={`konva-holder ${previewBackgroundClass}`} style={{width:stageWidth*displayScale,height:stageHeight*displayScale,...previewBackgroundStyle}}>
-            <Stage ref={stageRef} width={stageWidth*displayScale} height={stageHeight*displayScale}>
-              <Layer scaleX={displayScale} scaleY={displayScale}>
-                {previewMessages.map(chat=><ChatCard key={chat.id} chat={centeredMessage(chat)} selected={chat.id===selected.id} locked={project.canvas.previewMode==="message"} onSelect={()=>dispatch({type:"project",patch:{selectedId:chat.id}})} onPatch={patch=>dispatch({type:"message",id:chat.id,patch:project.canvas.previewMode==="message"&&patch.transform?{...patch,transform:{...patch.transform,x:chat.transform.x,y:chat.transform.y}}:patch})} register={node=>{if(node)groupRefs.current[chat.id]=node;else delete groupRefs.current[chat.id];}}/>)}
-                <Transformer ref={transformerRef} rotateEnabled enabledAnchors={["top-left","top-right","bottom-left","bottom-right"]} borderStroke="#8B65F4" anchorFill="#FFFFFF" anchorStroke="#8B65F4" anchorSize={9/displayScale} borderStrokeWidth={1.5/displayScale} padding={5/displayScale} keepRatio boundBoxFunc={(oldBox,newBox)=>Math.abs(newBox.width)<50||Math.abs(newBox.height)<24?oldBox:newBox}/>
-              </Layer>
-            </Stage>
+  const recordAnimationWebm = async (chat: ChatMessage) => {
+    const stage = stageRef.current,
+      node = groupRefs.current[chat.id];
+    if (!stage || !node) throw new Error("The selected message is not ready");
+    if (!HTMLCanvasElement.prototype.captureStream || typeof MediaRecorder === "undefined") throw new Error("This browser cannot record canvas video");
+    stopAnimationPreview();
+    const transformer = transformerRef.current;
+    const previous = project.messages.map((message) => ({
+      id: message.id,
+      visible: groupRefs.current[message.id]?.visible() ?? false,
+    }));
+    const messageNode = node.findOne(".message-text") as Konva.Text | undefined;
+    const originalText = messageNode?.text() ?? "";
+    const origin = {
+      x: node.x(),
+      y: node.y(),
+      scaleX: node.scaleX(),
+      scaleY: node.scaleY(),
+      opacity: node.opacity(),
+    };
+    transformer?.visible(false);
+    Object.entries(groupRefs.current).forEach(([id, group]) => group.visible(id === chat.id));
+    node.opacity(origin.opacity);
+    stage.batchDraw();
+    const rect = node.getClientRect({ relativeTo: stage });
+    const motionPadding = (chat.animation.padding + 56 * Math.max(0.25, chat.animation.intensity)) * displayScale;
+    const crop = {
+      x: rect.x - motionPadding,
+      y: rect.y - motionPadding,
+      width: rect.width + motionPadding * 2,
+      height: rect.height + motionPadding * 2,
+    };
+    const quality = chat.animation.quality;
+    const width = Math.max(2, Math.ceil((crop.width * quality) / 2) * 2),
+      height = Math.max(2, Math.ceil((crop.height * quality) / 2) * 2);
+    const output = document.createElement("canvas");
+    output.width = width;
+    output.height = height;
+    const context = output.getContext("2d");
+    if (!context) throw new Error("Canvas video context is unavailable");
+    const mimeType = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
+    const chunks: BlobPart[] = [];
+    const recorder = new MediaRecorder(output.captureStream(chat.animation.fps), { mimeType, videoBitsPerSecond: quality === 2 ? 20_000_000 : 10_000_000 });
+    recorder.ondataavailable = (event) => {
+      if (event.data.size) chunks.push(event.data);
+    };
+    const stopped = new Promise<Blob>((resolve, reject) => {
+      recorder.onerror = () => reject(new Error("The browser recorder failed"));
+      recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType || "video/webm" }));
+    });
+    const draw = (elapsed: number) => {
+      applyAnimationState(node, chat, elapsed, origin, messageNode);
+      stage.batchDraw();
+      const frame = stage.toCanvas({
+        x: crop.x,
+        y: crop.y,
+        width: crop.width,
+        height: crop.height,
+        pixelRatio: quality,
+      });
+      context.fillStyle = chat.animation.backgroundColor;
+      context.fillRect(0, 0, width, height);
+      context.drawImage(frame, 0, 0, width, height);
+    };
+    try {
+      draw(0);
+      recorder.start(250);
+      const total = animationTotalMs(chat.animation),
+        started = performance.now();
+      await new Promise<void>((resolve) => {
+        let lastProgress = -1;
+        const tick = (now: number) => {
+          const elapsed = Math.min(total, now - started);
+          draw(elapsed);
+          const progress = Math.round((elapsed / total) * 55);
+          if (progress !== lastProgress) {
+            lastProgress = progress;
+            setVideoExportProgress(progress);
+          }
+          if (elapsed >= total) {
+            resolve();
+            return;
+          }
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+      await new Promise((resolve) => window.setTimeout(resolve, 80));
+      recorder.stop();
+      return await stopped;
+    } finally {
+      node.position({ x: origin.x, y: origin.y });
+      node.scale({ x: origin.scaleX, y: origin.scaleY });
+      node.opacity(origin.opacity);
+      messageNode?.text(originalText);
+      previous.forEach((item) => groupRefs.current[item.id]?.visible(item.visible));
+      transformer?.visible(true);
+      stage.batchDraw();
+    }
+  };
+
+  const loadFfmpeg = async () => {
+    if (ffmpegRef.current) return ffmpegRef.current;
+    setVideoExportStatus("Downloading the local video converter (first export only)…");
+    const [{ FFmpeg }, { toBlobURL }] = await Promise.all([import("@ffmpeg/ffmpeg"), import("@ffmpeg/util")]);
+    const ffmpeg = new FFmpeg();
+    ffmpeg.on("progress", ({ progress }) => setVideoExportProgress(55 + Math.round(Math.max(0, Math.min(1, progress)) * 43)));
+    const coreBase = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${coreBase}/ffmpeg-core.js`, "text/javascript"),
+      wasmURL: await toBlobURL(`${coreBase}/ffmpeg-core.wasm`, "application/wasm"),
+    });
+    ffmpegRef.current = ffmpeg;
+    return ffmpeg;
+  };
+
+  const exportAnimatedVideo = async () => {
+    if (isVideoExporting) return;
+    const chat = selected;
+    setIsVideoExporting(true);
+    setVideoExportProgress(0);
+    setVideoExportStatus("Rendering the cropped message animation…");
+    let input = "",
+      output = "";
+    try {
+      const webm = await recordAnimationWebm(chat);
+      setVideoExportStatus(`Encoding ${chat.animation.format.toUpperCase()} locally…`);
+      const [{ fetchFile }, ffmpeg] = await Promise.all([import("@ffmpeg/util"), loadFfmpeg()]);
+      input = `message-${Date.now()}.webm`;
+      output = `message-${Date.now()}.${chat.animation.format}`;
+      await ffmpeg.writeFile(input, await fetchFile(webm));
+      const h264 = ["-i", input, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output];
+      try {
+        await ffmpeg.exec(h264);
+      } catch {
+        await ffmpeg.exec(["-i", input, "-an", "-c:v", "mpeg4", "-q:v", "2", "-pix_fmt", "yuv420p", output]);
+      }
+      const encoded = await ffmpeg.readFile(output);
+      const bytes = typeof encoded === "string" ? new TextEncoder().encode(encoded) : encoded;
+      const blob = new Blob([bytes.slice().buffer], {
+        type: chat.animation.format === "mp4" ? "video/mp4" : "video/quicktime",
+      });
+      const url = URL.createObjectURL(blob),
+        anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${safeFilename(chat.username || "SoySanwich")}-${chat.animation.type}-animated.${chat.animation.format}`;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+      setVideoExportProgress(100);
+      setVideoExportStatus(`${chat.animation.format.toUpperCase()} ready · selected message only`);
+      showToast(`Animated ${chat.animation.format.toUpperCase()} exported`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Video export failed";
+      setVideoExportStatus(message);
+      showToast(message);
+    } finally {
+      const ffmpeg = ffmpegRef.current;
+      if (ffmpeg) {
+        if (input)
+          try {
+            await ffmpeg.deleteFile(input);
+          } catch {}
+        if (output)
+          try {
+            await ffmpeg.deleteFile(output);
+          } catch {}
+      }
+      setIsVideoExporting(false);
+    }
+  };
+
+  const resetProject = () => {
+    if (window.confirm("Reset the entire project? This cannot be undone.")) {
+      localStorage.removeItem(STORAGE_KEY);
+      dispatch({ type: "reset", project: createProject() });
+      showToast("Project reset");
+    }
+  };
+  const copyCurrentStyle = () => {
+    dispatch({
+      type: "project",
+      patch: { styleClipboard: copyStyle(selected) },
+    });
+    showToast("Style copied");
+  };
+  const pasteCurrentStyle = () => {
+    if (!project.styleClipboard) {
+      showToast("Copy a style first");
+      return;
+    }
+    dispatch({
+      type: "replace-message",
+      message: pasteStyle(selected, project.styleClipboard),
+    });
+    showToast("Style pasted");
+  };
+  const saveCurrentPreset = () => {
+    const name = presetName.trim().slice(0, 40);
+    if (!name) {
+      showToast("Name your preset first");
+      return;
+    }
+    const existing = project.savedPresets.find((preset) => preset.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+    const preset = {
+      id: existing?.id ?? uid(),
+      name,
+      createdAt: existing?.createdAt ?? Date.now(),
+      style: copyStyle(selected),
+    };
+    const savedPresets = existing ? project.savedPresets.map((item) => (item.id === existing.id ? preset : item)) : [...project.savedPresets, preset];
+    dispatch({ type: "project", patch: { savedPresets } });
+    setPresetName("");
+    showToast(existing ? `${name} preset updated` : `${name} preset saved`);
+  };
+  const applySavedPreset = (id: string) => {
+    const preset = project.savedPresets.find((item) => item.id === id);
+    if (!preset) return;
+    dispatch({
+      type: "replace-message",
+      message: pasteStyle(selected, preset.style),
+    });
+    showToast(`${preset.name} preset applied`);
+  };
+  const deleteSavedPreset = (id: string) => {
+    dispatch({
+      type: "project",
+      patch: {
+        savedPresets: project.savedPresets.filter((item) => item.id !== id),
+      },
+    });
+    showToast("Preset deleted");
+  };
+  const randomizeBackPalette = () => {
+    const palette = randomMatchingPalette(selected.front.backgroundColor);
+    patchSelected({
+      back: matchingBackFill(selected.back, palette),
+      content: {
+        ...selected.content,
+        usernameColor: palette.username,
+        usernameColorMode: "random",
+      },
+    });
+    showToast("Matching palette applied");
+  };
+
+  const tabs: { id: InspectorTab; label: string }[] = [
+    { id: "content", label: "Content" },
+    { id: "front", label: "Front Card" },
+    { id: "back", label: "Back Card" },
+    { id: "badges", label: "Badges" },
+    { id: "transform", label: "Transform" },
+    { id: "animation", label: "Animation" },
+    { id: "export", label: "Export" },
+  ];
+  const centeredMessage = (chat: ChatMessage) =>
+    project.canvas.previewMode === "message"
+      ? {
+          ...chat,
+          transform: {
+            ...chat.transform,
+            x: stageWidth / 2,
+            y: stageHeight / 2,
+          },
+        }
+      : chat;
+  const previewMessages = project.canvas.previewMode === "message" ? [selected] : project.messages;
+  const previewBackgroundClass = project.canvas.previewMode === "message" ? `preview-bg-${project.canvas.previewBackgroundPreset}` : "";
+  const previewBackgroundStyle = project.canvas.previewMode === "message" && project.canvas.previewBackgroundPreset === "custom" ? { backgroundColor: project.canvas.previewBackgroundColor } : undefined;
+
+  return (
+    <main className="editor-shell">
+      <header className="editor-topbar">
+        <div className="editor-brand">
+          <span>
+            <BrandIcon icon={siTwitch} size={19} color="#fff" />
+          </span>
+          <div>
+            <small>CHAT CARD STUDIO</small>
+            <h1>Twitch Chat Card Generator</h1>
           </div>
         </div>
-        <div className="canvas-status"><span><i/> {storageError?"Storage full — project remains in this session":"Auto-saved locally"}</span><span>{project.canvas.previewMode==="message"?"El fondo es solo preview · PNG siempre transparente":"Arrastra el mensaje o usa Centrar mensaje"}</span></div>
-      </section>
-      <aside className="property-pane">
-        <div className="layers-title"><div><small>LAYERS</small><h2>Chat messages <em>{project.messages.length}</em></h2></div><button aria-label="Add message" onClick={newMessage}><Plus size={16}/></button></div>
-        <div className="layer-list">
-          {project.messages.map((chat,index)=><div key={chat.id} className={chat.id===selected.id?"layer-item selected":"layer-item"} draggable onDragStart={event=>event.dataTransfer.setData("text/plain",String(index))} onDragOver={event=>event.preventDefault()} onDrop={event=>reorder(Number(event.dataTransfer.getData("text/plain")),index)} onClick={()=>dispatch({type:"project",patch:{selectedId:chat.id}})}>
-            <GripVertical size={14} className="grip"/><span className="layer-avatar" style={{background:chat.back.fillMode==="gradient"?`linear-gradient(${chat.back.gradientAngle}deg, ${chat.back.gradientStart}, ${chat.back.gradientEnd})`:chat.back.backgroundColor}}>{(chat.username||"SS").slice(0,2).toUpperCase()}</span><span className="layer-copy"><b>{chat.username||"SoySanwich"}</b><small>{chat.message||"Ingresa lo que quieras decir"}</small></span>
-            <button aria-label={chat.visible?"Hide message":"Show message"} onClick={event=>{event.stopPropagation();dispatch({type:"message",id:chat.id,patch:{visible:!chat.visible}})}}>{chat.visible?<Eye size={14}/>:<EyeOff size={14}/>}</button>
-            <span className="layer-order"><button aria-label="Move layer up" disabled={index===0} onClick={event=>{event.stopPropagation();reorder(index,index-1)}}>↑</button><button aria-label="Move layer down" disabled={index===project.messages.length-1} onClick={event=>{event.stopPropagation();reorder(index,index+1)}}>↓</button></span>
-          </div>)}
+        <div className="top-actions">
+          {project.canvas.previewMode === "canvas" ? (
+            <div className="orientation-switch">
+              <button className={project.canvas.orientation === "horizontal" ? "active" : ""} onClick={() => setOrientation("horizontal")}>
+                Horizontal
+              </button>
+              <button className={project.canvas.orientation === "vertical" ? "active" : ""} onClick={() => setOrientation("vertical")}>
+                Vertical
+              </button>
+            </div>
+          ) : null}
+          <button className="tool-button" onClick={newMessage}>
+            <Plus size={15} />
+            New message
+          </button>
+          <button className="tool-button" onClick={randomizeStyle}>
+            <Shuffle size={14} />
+            Randomize style
+          </button>
+          <button className="primary-button" onClick={() => downloadPng()}>
+            <Download size={15} />
+            Export PNG
+          </button>
         </div>
-        <div className="layer-actions"><button onClick={duplicateMessage}><Copy size={13}/>Duplicate</button><button onClick={copyCurrentStyle}>Copy style</button><button disabled={!project.styleClipboard} onClick={pasteCurrentStyle}>Paste style</button><button className="danger" onClick={deleteMessage}><Trash2 size={13}/></button></div>
-        <nav className="property-tabs">{tabs.map(item=><button key={item.id} className={tab===item.id?"active":""} onClick={()=>setTab(item.id)}>{item.label}</button>)}</nav>
-        <div className="properties-scroll">
-          {tab==="content"&&<>
-            <PanelSection title="Message content"><Field label="Nombre" wide><input placeholder="SoySanwich" value={selected.username} onChange={e=>patchSelected({username:e.target.value})}/></Field><Field label="Chat" wide><textarea rows={3} placeholder="Ingresa lo que quieras decir" value={selected.message} onChange={e=>patchSelected({message:e.target.value})}/></Field><Field label="Layout" wide><select value={selected.content.layout} onChange={e=>patchContent({layout:e.target.value as "stacked"|"inline"})}><option value="stacked">Reference · stacked</option><option value="inline">Traditional · inline</option></select></Field></PanelSection>
-            <PanelSection title="Username"><Field label="Color mode"><select value={selected.content.usernameColorMode} onChange={e=>patchContent({usernameColorMode:e.target.value as "manual"|"random"})}><option value="manual">Manual</option><option value="random">Random</option></select></Field><ColorField label="Username color" value={selected.content.usernameColor} onChange={usernameColor=>patchContent({usernameColor})}/><NumberField label="Font size" value={selected.content.usernameFontSize} min={8} max={96} onChange={usernameFontSize=>patchContent({usernameFontSize})}/><Field label="Weight"><select value={selected.content.usernameWeight} onChange={e=>patchContent({usernameWeight:Number(e.target.value)})}><option value="400">Regular</option><option value="500">Medium</option><option value="600">SemiBold</option><option value="700">Bold</option></select></Field><button className="secondary wide" onClick={()=>patchContent({usernameColor:randomUsernameColor(selected.front.backgroundColor),usernameColorMode:"random"})}><Sparkles size={13}/>Regenerate color</button><Toggle label="Randomize on new message" checked={project.canvas.randomizeOnNew} onChange={randomizeOnNew=>dispatch({type:"project",patch:{canvas:{...project.canvas,randomizeOnNew}}})}/></PanelSection>
-            <PanelSection title="Typography"><Field label="Font family" wide><select value={selected.content.fontFamily} onChange={e=>patchContent({fontFamily:e.target.value as FontChoice})}>{(["Roobert","Inter","Arial","Helvetica","Verdana","Georgia","Trebuchet MS","system-ui"] as FontChoice[]).map(font=><option key={font} value={font}>{font}{font==="Roobert"?" · Twitch default":""}</option>)}</select></Field><ColorField label="Message color" value={selected.content.messageColor} onChange={messageColor=>patchContent({messageColor})}/><NumberField label="Font size" value={selected.content.messageFontSize} min={8} max={120} onChange={messageFontSize=>patchContent({messageFontSize})}/><NumberField label="Line height" value={selected.content.lineHeight} min={.8} max={3} step={.05} onChange={lineHeight=>patchContent({lineHeight})}/><Field label="Weight"><select value={selected.content.messageWeight} onChange={e=>patchContent({messageWeight:Number(e.target.value)})}><option value="400">Regular</option><option value="500">Medium</option><option value="600">SemiBold</option><option value="700">Bold</option></select></Field><NumberField label="Maximum width" value={selected.content.messageMaxWidth} min={80} max={1400} onChange={messageMaxWidth=>patchContent({messageMaxWidth})}/><Field label="Alignment"><select value={selected.content.textAlign} onChange={e=>patchContent({textAlign:e.target.value as "left"|"center"|"right"})}><option>left</option><option>center</option><option>right</option></select></Field></PanelSection>
-            <PanelSection title="Spacing"><NumberField label="Badge → username" value={selected.content.badgeUsernameSpacing} min={0} max={80} onChange={badgeUsernameSpacing=>patchContent({badgeUsernameSpacing})}/><NumberField label="Username → message" value={selected.content.usernameMessageSpacing} min={0} max={100} onChange={usernameMessageSpacing=>patchContent({usernameMessageSpacing})}/></PanelSection>
-            <PanelSection title="Saved style presets"><div className="preset-save wide"><input aria-label="Preset name" maxLength={40} placeholder="My matching style" value={presetName} onChange={event=>setPresetName(event.target.value)} onKeyDown={event=>{if(event.key==="Enter")saveCurrentPreset();}}/><button disabled={!presetName.trim()} onClick={saveCurrentPreset}><Plus size={13}/>Save current</button></div><div className="saved-preset-list wide">{project.savedPresets.length===0?<p>No saved presets yet.</p>:project.savedPresets.map(preset=><div key={preset.id}><button className="saved-preset-apply" onClick={()=>applySavedPreset(preset.id)}><i style={{background:preset.style.back.fillMode==="gradient"?`linear-gradient(135deg, ${preset.style.back.gradientStart}, ${preset.style.back.gradientEnd})`:preset.style.back.backgroundColor}}/><span><b>{preset.name}</b><small>Apply cards, typography and badge sizing</small></span></button><button className="saved-preset-delete" aria-label={`Delete ${preset.name}`} onClick={()=>deleteSavedPreset(preset.id)}><Trash2 size={13}/></button></div>)}</div></PanelSection>
-          </>}
-          {tab==="front"&&<>
-            <PanelSection title="Presets"><div className="preset-grid wide">{(["Reference","Compact","Big Creator","Minimal"] as const).map(name=><button key={name} onClick={()=>applyStylePreset(name)}>{name}</button>)}</div></PanelSection>
-            <PanelSection title="Surface"><ColorField label="Background" value={selected.front.backgroundColor} onChange={backgroundColor=>patchFront({backgroundColor})}/><NumberField label="Opacity" value={selected.front.opacity} min={0} max={1} step={.05} onChange={opacity=>patchFront({opacity})}/><Toggle label="Auto Size" checked={selected.front.autoSize} onChange={autoSize=>patchFront({autoSize})} help={currentLayout.overflow?"Content is clipped at this size":undefined}/><span className="wide size-readout">Rendered size <b>{Math.round(currentLayout.width)} × {Math.round(currentLayout.height)} px</b></span></PanelSection>
-            <PanelSection title="Dimensions"><NumberField label="Width" value={selected.front.width} min={80} max={1600} disabled={selected.front.autoSize} onChange={width=>patchFront({width})}/><NumberField label="Height" value={selected.front.height} min={24} max={1000} disabled={selected.front.autoSize} onChange={height=>patchFront({height})}/><NumberField label="Minimum width" value={selected.front.minWidth} min={80} max={1600} disabled={!selected.front.autoSize} onChange={minWidth=>patchFront({minWidth})}/><NumberField label="Maximum width" value={selected.front.maxWidth} min={80} max={1800} disabled={!selected.front.autoSize} onChange={maxWidth=>patchFront({maxWidth})}/><NumberField label="Horizontal padding" value={selected.front.paddingX} min={0} max={200} onChange={paddingX=>patchFront({paddingX})}/><NumberField label="Vertical padding" value={selected.front.paddingY} min={0} max={200} onChange={paddingY=>patchFront({paddingY})}/><NumberField label="Border radius" value={selected.front.borderRadius} min={0} max={300} onChange={borderRadius=>patchFront({borderRadius})}/></PanelSection>
-            <PanelSection title="Border"><Toggle label="Enable border" checked={selected.front.border.enabled} onChange={enabled=>patchFront({border:{...selected.front.border,enabled}})}/><ColorField label="Border color" value={selected.front.border.color} disabled={!selected.front.border.enabled} onChange={color=>patchFront({border:{...selected.front.border,color}})}/><NumberField label="Thickness" value={selected.front.border.thickness} min={0} max={30} disabled={!selected.front.border.enabled} onChange={thickness=>patchFront({border:{...selected.front.border,thickness}})}/></PanelSection>
-            <PanelSection title="Shadow"><Toggle label="Enable shadow" checked={selected.front.shadow.enabled} onChange={enabled=>patchFront({shadow:{...selected.front.shadow,enabled}})}/><NumberField label="Blur" value={selected.front.shadow.blur} min={0} max={120} disabled={!selected.front.shadow.enabled} onChange={blur=>patchFront({shadow:{...selected.front.shadow,blur}})}/><NumberField label="Opacity" value={selected.front.shadow.opacity} min={0} max={1} step={.05} disabled={!selected.front.shadow.enabled} onChange={opacity=>patchFront({shadow:{...selected.front.shadow,opacity}})}/><NumberField label="Shadow X" value={selected.front.shadow.x} min={-100} max={100} disabled={!selected.front.shadow.enabled} onChange={x=>patchFront({shadow:{...selected.front.shadow,x}})}/><NumberField label="Shadow Y" value={selected.front.shadow.y} min={-100} max={100} disabled={!selected.front.shadow.enabled} onChange={y=>patchFront({shadow:{...selected.front.shadow,y}})}/></PanelSection>
-          </>}
-          {tab==="back"&&<>
-            <PanelSection title="Back card presets"><div className="back-preset-grid wide">{(["Reference Blue","Twitch","Sunset","Aurora","Mono"] as const).map(name=><button key={name} onClick={()=>applyBackPreset(name)}>{name}</button>)}</div></PanelSection>
-            <PanelSection title="Surface"><Field label="Fill type" wide><select value={selected.back.fillMode} onChange={event=>patchBack({fillMode:event.target.value as "solid"|"gradient"})}><option value="solid">Solid color</option><option value="gradient">Gradient</option></select></Field>{selected.back.fillMode==="solid"?<ColorField label="Back card color" value={selected.back.backgroundColor} onChange={backgroundColor=>patchBack({backgroundColor})}/>:<><div className="gradient-type-grid wide">{GRADIENT_TYPES.map(type=><button key={type} className={selected.back.gradientType===type?`active gradient-${type}`:`gradient-${type}`} onClick={()=>patchBack({gradientType:type})}><i/><span>{GRADIENT_LABELS[type]}</span></button>)}</div><ColorField label="Color 1" value={selected.back.gradientStart} onChange={gradientStart=>patchBack({gradientStart})}/><ColorField label="Color 2" value={selected.back.gradientAccent} onChange={gradientAccent=>patchBack({gradientAccent})}/><ColorField label="Color 3" value={selected.back.gradientAccent2} onChange={gradientAccent2=>patchBack({gradientAccent2})}/><ColorField label="Color 4" value={selected.back.gradientEnd} onChange={gradientEnd=>patchBack({gradientEnd})}/><NumberField label="Gradient angle" value={selected.back.gradientAngle} min={0} max={360} onChange={gradientAngle=>patchBack({gradientAngle})}/></>}<NumberField label="Opacity" value={selected.back.opacity} min={0} max={1} step={.05} onChange={opacity=>patchBack({opacity})}/><button className="secondary wide" onClick={randomizeBackPalette}><Sparkles size={13}/>Randomize matching palette</button></PanelSection>
-            <PanelSection title="Position & size"><NumberField label="Offset X" value={selected.back.offsetX} min={-300} max={300} onChange={offsetX=>patchBack({offsetX})}/><NumberField label="Offset Y" value={selected.back.offsetY} min={-300} max={300} onChange={offsetY=>patchBack({offsetY})}/><Toggle label="Match Front Card Size" checked={selected.back.matchFrontSize} onChange={matchFrontSize=>patchBack({matchFrontSize})}/><span/><NumberField label="Width" value={selected.back.width} min={20} max={1800} disabled={selected.back.matchFrontSize} onChange={width=>patchBack({width})}/><NumberField label="Height" value={selected.back.height} min={20} max={1800} disabled={selected.back.matchFrontSize} onChange={height=>patchBack({height})}/><NumberField label="Width adjustment" value={selected.back.widthAdjustment} min={-600} max={600} onChange={widthAdjustment=>patchBack({widthAdjustment})}/><NumberField label="Height adjustment" value={selected.back.heightAdjustment} min={-600} max={600} onChange={heightAdjustment=>patchBack({heightAdjustment})}/><NumberField label="Scale X" value={selected.back.scaleX} min={.1} max={4} step={.05} onChange={scaleX=>patchBack({scaleX})}/><NumberField label="Scale Y" value={selected.back.scaleY} min={.1} max={4} step={.05} onChange={scaleY=>patchBack({scaleY})}/></PanelSection>
-            <PanelSection title="Corners"><Toggle label="Link Border Radius" checked={selected.back.linkBorderRadius} onChange={linkBorderRadius=>patchBack({linkBorderRadius,borderRadius:linkBorderRadius?selected.front.borderRadius:selected.back.borderRadius})}/><NumberField label="Border radius" value={selected.back.borderRadius} min={0} max={300} disabled={selected.back.linkBorderRadius} onChange={borderRadius=>patchBack({borderRadius})}/></PanelSection>
-            <PanelSection title="Border"><Toggle label="Enable border" checked={selected.back.border.enabled} onChange={enabled=>patchBack({border:{...selected.back.border,enabled}})}/><ColorField label="Border color" value={selected.back.border.color} disabled={!selected.back.border.enabled} onChange={color=>patchBack({border:{...selected.back.border,color}})}/><NumberField label="Thickness" value={selected.back.border.thickness} min={0} max={30} disabled={!selected.back.border.enabled} onChange={thickness=>patchBack({border:{...selected.back.border,thickness}})}/></PanelSection>
-            <PanelSection title="Shadow"><Toggle label="Enable shadow" checked={selected.back.shadow.enabled} onChange={enabled=>patchBack({shadow:{...selected.back.shadow,enabled}})}/><NumberField label="Blur" value={selected.back.shadow.blur} min={0} max={120} disabled={!selected.back.shadow.enabled} onChange={blur=>patchBack({shadow:{...selected.back.shadow,blur}})}/><NumberField label="Opacity" value={selected.back.shadow.opacity} min={0} max={1} step={.05} disabled={!selected.back.shadow.enabled} onChange={opacity=>patchBack({shadow:{...selected.back.shadow,opacity}})}/><NumberField label="Shadow X" value={selected.back.shadow.x} min={-100} max={100} disabled={!selected.back.shadow.enabled} onChange={x=>patchBack({shadow:{...selected.back.shadow,x}})}/><NumberField label="Shadow Y" value={selected.back.shadow.y} min={-100} max={100} disabled={!selected.back.shadow.enabled} onChange={y=>patchBack({shadow:{...selected.back.shadow,y}})}/></PanelSection>
-          </>}
-          {tab==="badges"&&<>
-            <PanelSection title="Official Twitch badges"><div className="badge-palette wide">{(Object.keys(BADGE_META) as BadgeType[]).filter(type=>type!=="Custom"&&type!=="TikTok").map(type=><button key={type} onClick={()=>addBadge(type)} style={{"--badge":BADGE_META[type].color} as React.CSSProperties}><i><BadgePreview type={type}/></i><span>{type}</span></button>)}</div></PanelSection>
-            <PanelSection title="Custom badges"><Field label="Upload your badge" wide><label className="upload-button"><ImagePlus size={15}/>PNG, WebP or SVG<input type="file" accept=".png,.webp,.svg,image/png,image/webp,image/svg+xml" onChange={event=>uploadBadge(event.target.files?.[0])}/></label></Field></PanelSection>
-            <PanelSection title="Social media"><div className="badge-palette social-badges wide"><button onClick={()=>addBadge("TikTok")} style={{"--badge":BADGE_META.TikTok.color} as React.CSSProperties}><i><BadgePreview type="TikTok"/></i><span>TikTok</span></button></div></PanelSection>
-            <PanelSection title="Badge sizing"><NumberField label="Size" value={selected.badgeSettings.size} min={8} max={120} onChange={size=>patchBadgeSettings({size})}/><NumberField label="Spacing" value={selected.badgeSettings.spacing} min={0} max={80} onChange={spacing=>patchBadgeSettings({spacing})}/></PanelSection>
-            <PanelSection title={`Active badges · ${selected.badges.length}`}><div className="active-badges wide">{selected.badges.length===0?<p>No badges yet. Add one above.</p>:selected.badges.map((badge,index)=><div key={badge.id} draggable onDragStart={event=>event.dataTransfer.setData("text/badge",String(index))} onDragOver={event=>event.preventDefault()} onDrop={event=>reorderBadge(Number(event.dataTransfer.getData("text/badge")),index)}><GripVertical size={13}/><i style={{background:BADGE_META[badge.type].color}}>{badge.customDataUrl?<img src={badge.customDataUrl} alt=""/>:<BadgePreview type={badge.type}/>}</i><span>{badge.label}</span><button onClick={()=>updateBadge(badge.id,{visible:!badge.visible})}>{badge.visible?<Eye size={13}/>:<EyeOff size={13}/>}</button><button disabled={index===0} onClick={()=>reorderBadge(index,index-1)}>↑</button><button disabled={index===selected.badges.length-1} onClick={()=>reorderBadge(index,index+1)}>↓</button><button className="danger" onClick={()=>removeBadge(badge.id)}><Trash2 size={12}/></button></div>)}</div></PanelSection>
-          </>}
-          {tab==="transform"&&<>
-            <PanelSection title="Message transform">{project.canvas.previewMode==="message"?<div className="locked-position wide"><b>Solo mensaje siempre centrado</b><span>Cambia a Canvas completo para arrastrar el mensaje o definir una posición.</span></div>:<><NumberField label="X" value={selected.transform.x} min={0} max={project.canvas.width} onChange={x=>patchSelected({transform:{...selected.transform,x}})}/><NumberField label="Y" value={selected.transform.y} min={0} max={project.canvas.height} onChange={y=>patchSelected({transform:{...selected.transform,y}})}/><button className="secondary wide" onClick={centerSelected}>Centrar automáticamente en canvas</button></>}<NumberField label="Scale" value={selected.transform.scale} min={.1} max={8} step={.05} onChange={scale=>patchSelected({transform:{...selected.transform,scale}})}/><NumberField label="Rotation" value={selected.transform.rotation} min={-360} max={360} onChange={rotation=>patchSelected({transform:{...selected.transform,rotation}})}/><button className="secondary wide" onClick={()=>patchSelected({transform:{...selected.transform,scale:1,rotation:0}})}><RotateCcw size={13}/>Reset scale and rotation</button></PanelSection>
-            <PanelSection title="Randomize style"><Toggle label="Username color" checked={project.randomize.usernameColor} onChange={usernameColor=>dispatch({type:"project",patch:{randomize:{...project.randomize,usernameColor}}})}/><Toggle label="Back card color" checked={project.randomize.backCardColor} onChange={backCardColor=>dispatch({type:"project",patch:{randomize:{...project.randomize,backCardColor}}})}/><Toggle label="Card offset" checked={project.randomize.cardOffset} onChange={cardOffset=>dispatch({type:"project",patch:{randomize:{...project.randomize,cardOffset}}})}/><Toggle label="Border radius" checked={project.randomize.borderRadius} onChange={borderRadius=>dispatch({type:"project",patch:{randomize:{...project.randomize,borderRadius}}})}/><button className="secondary wide" onClick={randomizeStyle}><Shuffle size={13}/>Randomize selected properties</button></PanelSection>
-          </>}
-          {tab==="export"&&<>
-            <PanelSection title="Export mode"><button className={project.export.mode==="full"?"export-choice active wide":"export-choice wide"} onClick={()=>dispatch({type:"project",patch:{export:{...project.export,mode:"full"}}})}><Layers3 size={17}/><span><b>Full canvas PNG</b><small>{project.canvas.width} × {project.canvas.height}, transparent</small></span></button><button className={project.export.mode==="message"?"export-choice active wide":"export-choice wide"} onClick={()=>dispatch({type:"project",patch:{export:{...project.export,mode:"message"}}})}><Sparkles size={17}/><span><b>Message only PNG</b><small>Transparent and trimmed to the selected card</small></span></button></PanelSection>
-            <PanelSection title="Preview background · never exported"><div className="background-preset-grid wide">{(["white","black","checker","chroma","transparent","custom"] as const).map(preset=><button key={preset} className={project.canvas.previewBackgroundPreset===preset?`active bg-${preset}`:`bg-${preset}`} onClick={()=>dispatch({type:"project",patch:{canvas:{...project.canvas,previewBackgroundPreset:preset}}})}>{({white:"White",black:"Black",checker:"Checker",chroma:"Chroma",transparent:"Transparent",custom:"Custom"})[preset]}</button>)}</div>{project.canvas.previewBackgroundPreset==="custom"?<ColorField label="Custom preview color" value={project.canvas.previewBackgroundColor} onChange={previewBackgroundColor=>dispatch({type:"project",patch:{canvas:{...project.canvas,previewBackgroundColor}}})}/>:null}<NumberField label="Preview padding" value={project.canvas.previewPadding} min={0} max={400} onChange={previewPadding=>dispatch({type:"project",patch:{canvas:{...project.canvas,previewPadding}}})}/></PanelSection>
-            <PanelSection title="Output settings"><NumberField label="Transparent padding" value={project.export.padding} min={0} max={300} onChange={padding=>dispatch({type:"project",patch:{export:{...project.export,padding}}})}/><span className="size-readout">Quality <b>Maximum · PNG · 4×</b></span><button className="export-main wide" onClick={()=>downloadPng()}><Download size={16}/>Export transparent {project.export.mode==="full"?"full canvas":"message only"} PNG · 4×</button></PanelSection>
-            <PanelSection title="Project"><button className="reset-button wide" onClick={resetProject}><RotateCcw size={14}/>Reset project</button></PanelSection>
-          </>}
-        </div>
-      </aside>
-    </div>
-    {toast?<div className="toast">{toast}</div>:null}
-  </main>;
+      </header>
+      <div className="editor-workspace">
+        <section className="canvas-pane">
+          <div className="pane-meta">
+            <span>PREVIEW</span>
+            <div className="preview-switch">
+              <button
+                className={project.canvas.previewMode === "message" ? "active" : ""}
+                onClick={() =>
+                  dispatch({
+                    type: "project",
+                    patch: {
+                      canvas: { ...project.canvas, previewMode: "message" },
+                    },
+                  })
+                }
+              >
+                Solo mensaje
+              </button>
+              <button
+                className={project.canvas.previewMode === "canvas" ? "active" : ""}
+                onClick={() =>
+                  dispatch({
+                    type: "project",
+                    patch: {
+                      canvas: { ...project.canvas, previewMode: "canvas" },
+                    },
+                  })
+                }
+              >
+                Canvas completo
+              </button>
+              {project.canvas.previewMode === "canvas" ? (
+                <button className="center-preview" onClick={centerSelected}>
+                  Centrar mensaje
+                </button>
+              ) : null}
+            </div>
+            <span>
+              {stageWidth} × {stageHeight} · {Math.round(displayScale * 100)}%
+            </span>
+          </div>
+          <div className={`canvas-wrap ${project.canvas.orientation} ${project.canvas.previewMode === "message" ? "message-preview" : ""}`} ref={canvasWrapRef}>
+            <div
+              className={`konva-holder ${previewBackgroundClass}`}
+              style={{
+                width: stageWidth * displayScale,
+                height: stageHeight * displayScale,
+                ...previewBackgroundStyle,
+              }}
+            >
+              <Stage ref={stageRef} width={stageWidth * displayScale} height={stageHeight * displayScale}>
+                <Layer scaleX={displayScale} scaleY={displayScale}>
+                  {previewMessages.map((chat) => (
+                    <ChatCard
+                      key={chat.id}
+                      chat={centeredMessage(chat)}
+                      selected={chat.id === selected.id}
+                      locked={project.canvas.previewMode === "message"}
+                      onSelect={() =>
+                        dispatch({
+                          type: "project",
+                          patch: { selectedId: chat.id },
+                        })
+                      }
+                      onPatch={(patch) =>
+                        dispatch({
+                          type: "message",
+                          id: chat.id,
+                          patch:
+                            project.canvas.previewMode === "message" && patch.transform
+                              ? {
+                                  ...patch,
+                                  transform: {
+                                    ...patch.transform,
+                                    x: chat.transform.x,
+                                    y: chat.transform.y,
+                                  },
+                                }
+                              : patch,
+                        })
+                      }
+                      register={(node) => {
+                        if (node) groupRefs.current[chat.id] = node;
+                        else delete groupRefs.current[chat.id];
+                      }}
+                    />
+                  ))}
+                  <Transformer ref={transformerRef} rotateEnabled enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]} borderStroke="#8B65F4" anchorFill="#FFFFFF" anchorStroke="#8B65F4" anchorSize={9 / displayScale} borderStrokeWidth={1.5 / displayScale} padding={5 / displayScale} keepRatio boundBoxFunc={(oldBox, newBox) => (Math.abs(newBox.width) < 50 || Math.abs(newBox.height) < 24 ? oldBox : newBox)} />
+                </Layer>
+              </Stage>
+            </div>
+          </div>
+          <div className="canvas-status">
+            <span>
+              <i /> {storageError ? "Storage full — project remains in this session" : "Auto-saved locally"}
+            </span>
+            <span>{project.canvas.previewMode === "message" ? "El fondo es solo preview · PNG siempre transparente" : "Arrastra el mensaje o usa Centrar mensaje"}</span>
+          </div>
+        </section>
+        <aside className="property-pane">
+          <div className="layers-title">
+            <div>
+              <small>LAYERS</small>
+              <h2>
+                Chat messages <em>{project.messages.length}</em>
+              </h2>
+            </div>
+            <button aria-label="Add message" onClick={newMessage}>
+              <Plus size={16} />
+            </button>
+          </div>
+          <div className="layer-list">
+            {project.messages.map((chat, index) => (
+              <div key={chat.id} className={chat.id === selected.id ? "layer-item selected" : "layer-item"} draggable onDragStart={(event) => event.dataTransfer.setData("text/plain", String(index))} onDragOver={(event) => event.preventDefault()} onDrop={(event) => reorder(Number(event.dataTransfer.getData("text/plain")), index)} onClick={() => dispatch({ type: "project", patch: { selectedId: chat.id } })}>
+                <GripVertical size={14} className="grip" />
+                <span
+                  className="layer-avatar"
+                  style={{
+                    background: chat.back.fillMode === "gradient" ? `linear-gradient(${chat.back.gradientAngle}deg, ${chat.back.gradientStart}, ${chat.back.gradientEnd})` : chat.back.backgroundColor,
+                  }}
+                >
+                  {(chat.username || "SS").slice(0, 2).toUpperCase()}
+                </span>
+                <span className="layer-copy">
+                  <b>{chat.username || "SoySanwich"}</b>
+                  <small>{chat.message || "Ingresa lo que quieras decir"}</small>
+                </span>
+                <button
+                  aria-label={chat.visible ? "Hide message" : "Show message"}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    dispatch({
+                      type: "message",
+                      id: chat.id,
+                      patch: { visible: !chat.visible },
+                    });
+                  }}
+                >
+                  {chat.visible ? <Eye size={14} /> : <EyeOff size={14} />}
+                </button>
+                <span className="layer-order">
+                  <button
+                    aria-label="Move layer up"
+                    disabled={index === 0}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      reorder(index, index - 1);
+                    }}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    aria-label="Move layer down"
+                    disabled={index === project.messages.length - 1}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      reorder(index, index + 1);
+                    }}
+                  >
+                    ↓
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="layer-actions">
+            <button onClick={duplicateMessage}>
+              <Copy size={13} />
+              Duplicate
+            </button>
+            <button onClick={copyCurrentStyle}>Copy style</button>
+            <button disabled={!project.styleClipboard} onClick={pasteCurrentStyle}>
+              Paste style
+            </button>
+            <button className="danger" onClick={deleteMessage}>
+              <Trash2 size={13} />
+            </button>
+          </div>
+          <nav className="property-tabs">
+            {tabs.map((item) => (
+              <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          <div className="properties-scroll">
+            {tab === "content" && (
+              <>
+                <PanelSection title="Message content">
+                  <Field label="Nombre" wide>
+                    <input placeholder="SoySanwich" value={selected.username} onChange={(e) => patchSelected({ username: e.target.value })} />
+                  </Field>
+                  <Field label="Chat" wide>
+                    <textarea rows={3} placeholder="Ingresa lo que quieras decir" value={selected.message} onChange={(e) => patchSelected({ message: e.target.value })} />
+                  </Field>
+                  <Field label="Layout" wide>
+                    <select
+                      value={selected.content.layout}
+                      onChange={(e) =>
+                        patchContent({
+                          layout: e.target.value as "stacked" | "inline",
+                        })
+                      }
+                    >
+                      <option value="stacked">Reference · stacked</option>
+                      <option value="inline">Traditional · inline</option>
+                    </select>
+                  </Field>
+                </PanelSection>
+                <PanelSection title="Username">
+                  <Field label="Color mode">
+                    <select
+                      value={selected.content.usernameColorMode}
+                      onChange={(e) =>
+                        patchContent({
+                          usernameColorMode: e.target.value as "manual" | "random",
+                        })
+                      }
+                    >
+                      <option value="manual">Manual</option>
+                      <option value="random">Random</option>
+                    </select>
+                  </Field>
+                  <ColorField label="Username color" value={selected.content.usernameColor} onChange={(usernameColor) => patchContent({ usernameColor })} />
+                  <NumberField label="Font size" value={selected.content.usernameFontSize} min={8} max={96} onChange={(usernameFontSize) => patchContent({ usernameFontSize })} />
+                  <Field label="Weight">
+                    <select value={selected.content.usernameWeight} onChange={(e) => patchContent({ usernameWeight: Number(e.target.value) })}>
+                      <option value="400">Regular</option>
+                      <option value="500">Medium</option>
+                      <option value="600">SemiBold</option>
+                      <option value="700">Bold</option>
+                    </select>
+                  </Field>
+                  <button
+                    className="secondary wide"
+                    onClick={() =>
+                      patchContent({
+                        usernameColor: randomUsernameColor(selected.front.backgroundColor),
+                        usernameColorMode: "random",
+                      })
+                    }
+                  >
+                    <Sparkles size={13} />
+                    Regenerate color
+                  </button>
+                  <Toggle
+                    label="Randomize on new message"
+                    checked={project.canvas.randomizeOnNew}
+                    onChange={(randomizeOnNew) =>
+                      dispatch({
+                        type: "project",
+                        patch: {
+                          canvas: { ...project.canvas, randomizeOnNew },
+                        },
+                      })
+                    }
+                  />
+                </PanelSection>
+                <PanelSection title="Typography">
+                  <Field label="Font family" wide>
+                    <select
+                      value={selected.content.fontFamily}
+                      onChange={(e) =>
+                        patchContent({
+                          fontFamily: e.target.value as FontChoice,
+                        })
+                      }
+                    >
+                      {(["Roobert", "Inter", "Arial", "Helvetica", "Verdana", "Georgia", "Trebuchet MS", "system-ui"] as FontChoice[]).map((font) => (
+                        <option key={font} value={font}>
+                          {font}
+                          {font === "Roobert" ? " · Twitch default" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <ColorField label="Message color" value={selected.content.messageColor} onChange={(messageColor) => patchContent({ messageColor })} />
+                  <NumberField label="Font size" value={selected.content.messageFontSize} min={8} max={120} onChange={(messageFontSize) => patchContent({ messageFontSize })} />
+                  <NumberField label="Line height" value={selected.content.lineHeight} min={0.8} max={3} step={0.05} onChange={(lineHeight) => patchContent({ lineHeight })} />
+                  <Field label="Weight">
+                    <select value={selected.content.messageWeight} onChange={(e) => patchContent({ messageWeight: Number(e.target.value) })}>
+                      <option value="400">Regular</option>
+                      <option value="500">Medium</option>
+                      <option value="600">SemiBold</option>
+                      <option value="700">Bold</option>
+                    </select>
+                  </Field>
+                  <NumberField label="Maximum width" value={selected.content.messageMaxWidth} min={80} max={1400} onChange={(messageMaxWidth) => patchContent({ messageMaxWidth })} />
+                  <Field label="Alignment">
+                    <select
+                      value={selected.content.textAlign}
+                      onChange={(e) =>
+                        patchContent({
+                          textAlign: e.target.value as "left" | "center" | "right",
+                        })
+                      }
+                    >
+                      <option>left</option>
+                      <option>center</option>
+                      <option>right</option>
+                    </select>
+                  </Field>
+                </PanelSection>
+                <PanelSection title="Spacing">
+                  <NumberField label="Badge → username" value={selected.content.badgeUsernameSpacing} min={0} max={80} onChange={(badgeUsernameSpacing) => patchContent({ badgeUsernameSpacing })} />
+                  <NumberField label="Username → message" value={selected.content.usernameMessageSpacing} min={0} max={100} onChange={(usernameMessageSpacing) => patchContent({ usernameMessageSpacing })} />
+                </PanelSection>
+                <PanelSection title="Saved style presets">
+                  <div className="preset-save wide">
+                    <input
+                      aria-label="Preset name"
+                      maxLength={40}
+                      placeholder="My matching style"
+                      value={presetName}
+                      onChange={(event) => setPresetName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") saveCurrentPreset();
+                      }}
+                    />
+                    <button disabled={!presetName.trim()} onClick={saveCurrentPreset}>
+                      <Plus size={13} />
+                      Save current
+                    </button>
+                  </div>
+                  <div className="saved-preset-list wide">
+                    {project.savedPresets.length === 0 ? (
+                      <p>No saved presets yet.</p>
+                    ) : (
+                      project.savedPresets.map((preset) => (
+                        <div key={preset.id}>
+                          <button className="saved-preset-apply" onClick={() => applySavedPreset(preset.id)}>
+                            <i
+                              style={{
+                                background: preset.style.back.fillMode === "gradient" ? `linear-gradient(135deg, ${preset.style.back.gradientStart}, ${preset.style.back.gradientEnd})` : preset.style.back.backgroundColor,
+                              }}
+                            />
+                            <span>
+                              <b>{preset.name}</b>
+                              <small>Apply cards, typography and badge sizing</small>
+                            </span>
+                          </button>
+                          <button className="saved-preset-delete" aria-label={`Delete ${preset.name}`} onClick={() => deleteSavedPreset(preset.id)}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </PanelSection>
+              </>
+            )}
+            {tab === "front" && (
+              <>
+                <PanelSection title="Presets">
+                  <div className="preset-grid wide">
+                    {(["Reference", "Compact", "Big Creator", "Minimal"] as const).map((name) => (
+                      <button key={name} onClick={() => applyStylePreset(name)}>
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </PanelSection>
+                <PanelSection title="Surface">
+                  <ColorField label="Background" value={selected.front.backgroundColor} onChange={(backgroundColor) => patchFront({ backgroundColor })} />
+                  <NumberField label="Opacity" value={selected.front.opacity} min={0} max={1} step={0.05} onChange={(opacity) => patchFront({ opacity })} />
+                  <Toggle label="Auto Size" checked={selected.front.autoSize} onChange={(autoSize) => patchFront({ autoSize })} help={currentLayout.overflow ? "Content is clipped at this size" : undefined} />
+                  <span className="wide size-readout">
+                    Rendered size{" "}
+                    <b>
+                      {Math.round(currentLayout.width)} × {Math.round(currentLayout.height)} px
+                    </b>
+                  </span>
+                </PanelSection>
+                <PanelSection title="Dimensions">
+                  <NumberField label="Width" value={selected.front.width} min={80} max={1600} disabled={selected.front.autoSize} onChange={(width) => patchFront({ width })} />
+                  <NumberField label="Height" value={selected.front.height} min={24} max={1000} disabled={selected.front.autoSize} onChange={(height) => patchFront({ height })} />
+                  <NumberField label="Minimum width" value={selected.front.minWidth} min={80} max={1600} disabled={!selected.front.autoSize} onChange={(minWidth) => patchFront({ minWidth })} />
+                  <NumberField label="Maximum width" value={selected.front.maxWidth} min={80} max={1800} disabled={!selected.front.autoSize} onChange={(maxWidth) => patchFront({ maxWidth })} />
+                  <NumberField label="Horizontal padding" value={selected.front.paddingX} min={0} max={200} onChange={(paddingX) => patchFront({ paddingX })} />
+                  <NumberField label="Vertical padding" value={selected.front.paddingY} min={0} max={200} onChange={(paddingY) => patchFront({ paddingY })} />
+                  <NumberField label="Border radius" value={selected.front.borderRadius} min={0} max={300} onChange={(borderRadius) => patchFront({ borderRadius })} />
+                </PanelSection>
+                <PanelSection title="Border">
+                  <Toggle
+                    label="Enable border"
+                    checked={selected.front.border.enabled}
+                    onChange={(enabled) =>
+                      patchFront({
+                        border: { ...selected.front.border, enabled },
+                      })
+                    }
+                  />
+                  <ColorField
+                    label="Border color"
+                    value={selected.front.border.color}
+                    disabled={!selected.front.border.enabled}
+                    onChange={(color) =>
+                      patchFront({
+                        border: { ...selected.front.border, color },
+                      })
+                    }
+                  />
+                  <NumberField
+                    label="Thickness"
+                    value={selected.front.border.thickness}
+                    min={0}
+                    max={30}
+                    disabled={!selected.front.border.enabled}
+                    onChange={(thickness) =>
+                      patchFront({
+                        border: { ...selected.front.border, thickness },
+                      })
+                    }
+                  />
+                </PanelSection>
+                <PanelSection title="Shadow">
+                  <Toggle
+                    label="Enable shadow"
+                    checked={selected.front.shadow.enabled}
+                    onChange={(enabled) =>
+                      patchFront({
+                        shadow: { ...selected.front.shadow, enabled },
+                      })
+                    }
+                  />
+                  <NumberField label="Blur" value={selected.front.shadow.blur} min={0} max={120} disabled={!selected.front.shadow.enabled} onChange={(blur) => patchFront({ shadow: { ...selected.front.shadow, blur } })} />
+                  <NumberField
+                    label="Opacity"
+                    value={selected.front.shadow.opacity}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    disabled={!selected.front.shadow.enabled}
+                    onChange={(opacity) =>
+                      patchFront({
+                        shadow: { ...selected.front.shadow, opacity },
+                      })
+                    }
+                  />
+                  <NumberField label="Shadow X" value={selected.front.shadow.x} min={-100} max={100} disabled={!selected.front.shadow.enabled} onChange={(x) => patchFront({ shadow: { ...selected.front.shadow, x } })} />
+                  <NumberField label="Shadow Y" value={selected.front.shadow.y} min={-100} max={100} disabled={!selected.front.shadow.enabled} onChange={(y) => patchFront({ shadow: { ...selected.front.shadow, y } })} />
+                </PanelSection>
+              </>
+            )}
+            {tab === "back" && (
+              <>
+                <PanelSection title="Back card presets">
+                  <div className="back-preset-grid wide">
+                    {(["Reference Blue", "Twitch", "Sunset", "Aurora", "Mono"] as const).map((name) => (
+                      <button key={name} onClick={() => applyBackPreset(name)}>
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </PanelSection>
+                <PanelSection title="Surface">
+                  <Field label="Fill type" wide>
+                    <select
+                      value={selected.back.fillMode}
+                      onChange={(event) =>
+                        patchBack({
+                          fillMode: event.target.value as "solid" | "gradient",
+                        })
+                      }
+                    >
+                      <option value="solid">Solid color</option>
+                      <option value="gradient">Gradient</option>
+                    </select>
+                  </Field>
+                  {selected.back.fillMode === "solid" ? (
+                    <ColorField label="Back card color" value={selected.back.backgroundColor} onChange={(backgroundColor) => patchBack({ backgroundColor })} />
+                  ) : (
+                    <>
+                      <div className="gradient-type-grid wide">
+                        {GRADIENT_TYPES.map((type) => (
+                          <button key={type} className={selected.back.gradientType === type ? `active gradient-${type}` : `gradient-${type}`} onClick={() => patchBack({ gradientType: type })}>
+                            <i />
+                            <span>{GRADIENT_LABELS[type]}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <ColorField label="Color 1" value={selected.back.gradientStart} onChange={(gradientStart) => patchBack({ gradientStart })} />
+                      <ColorField label="Color 2" value={selected.back.gradientAccent} onChange={(gradientAccent) => patchBack({ gradientAccent })} />
+                      <ColorField label="Color 3" value={selected.back.gradientAccent2} onChange={(gradientAccent2) => patchBack({ gradientAccent2 })} />
+                      <ColorField label="Color 4" value={selected.back.gradientEnd} onChange={(gradientEnd) => patchBack({ gradientEnd })} />
+                      <NumberField label="Gradient angle" value={selected.back.gradientAngle} min={0} max={360} onChange={(gradientAngle) => patchBack({ gradientAngle })} />
+                    </>
+                  )}
+                  <NumberField label="Opacity" value={selected.back.opacity} min={0} max={1} step={0.05} onChange={(opacity) => patchBack({ opacity })} />
+                  <button className="secondary wide" onClick={randomizeBackPalette}>
+                    <Sparkles size={13} />
+                    Randomize matching palette
+                  </button>
+                </PanelSection>
+                <PanelSection title="Position & size">
+                  <NumberField label="Offset X" value={selected.back.offsetX} min={-300} max={300} onChange={(offsetX) => patchBack({ offsetX })} />
+                  <NumberField label="Offset Y" value={selected.back.offsetY} min={-300} max={300} onChange={(offsetY) => patchBack({ offsetY })} />
+                  <Toggle label="Match Front Card Size" checked={selected.back.matchFrontSize} onChange={(matchFrontSize) => patchBack({ matchFrontSize })} />
+                  <span />
+                  <NumberField label="Width" value={selected.back.width} min={20} max={1800} disabled={selected.back.matchFrontSize} onChange={(width) => patchBack({ width })} />
+                  <NumberField label="Height" value={selected.back.height} min={20} max={1800} disabled={selected.back.matchFrontSize} onChange={(height) => patchBack({ height })} />
+                  <NumberField label="Width adjustment" value={selected.back.widthAdjustment} min={-600} max={600} onChange={(widthAdjustment) => patchBack({ widthAdjustment })} />
+                  <NumberField label="Height adjustment" value={selected.back.heightAdjustment} min={-600} max={600} onChange={(heightAdjustment) => patchBack({ heightAdjustment })} />
+                  <NumberField label="Scale X" value={selected.back.scaleX} min={0.1} max={4} step={0.05} onChange={(scaleX) => patchBack({ scaleX })} />
+                  <NumberField label="Scale Y" value={selected.back.scaleY} min={0.1} max={4} step={0.05} onChange={(scaleY) => patchBack({ scaleY })} />
+                </PanelSection>
+                <PanelSection title="Corners">
+                  <Toggle
+                    label="Link Border Radius"
+                    checked={selected.back.linkBorderRadius}
+                    onChange={(linkBorderRadius) =>
+                      patchBack({
+                        linkBorderRadius,
+                        borderRadius: linkBorderRadius ? selected.front.borderRadius : selected.back.borderRadius,
+                      })
+                    }
+                  />
+                  <NumberField label="Border radius" value={selected.back.borderRadius} min={0} max={300} disabled={selected.back.linkBorderRadius} onChange={(borderRadius) => patchBack({ borderRadius })} />
+                </PanelSection>
+                <PanelSection title="Border">
+                  <Toggle
+                    label="Enable border"
+                    checked={selected.back.border.enabled}
+                    onChange={(enabled) =>
+                      patchBack({
+                        border: { ...selected.back.border, enabled },
+                      })
+                    }
+                  />
+                  <ColorField label="Border color" value={selected.back.border.color} disabled={!selected.back.border.enabled} onChange={(color) => patchBack({ border: { ...selected.back.border, color } })} />
+                  <NumberField
+                    label="Thickness"
+                    value={selected.back.border.thickness}
+                    min={0}
+                    max={30}
+                    disabled={!selected.back.border.enabled}
+                    onChange={(thickness) =>
+                      patchBack({
+                        border: { ...selected.back.border, thickness },
+                      })
+                    }
+                  />
+                </PanelSection>
+                <PanelSection title="Shadow">
+                  <Toggle
+                    label="Enable shadow"
+                    checked={selected.back.shadow.enabled}
+                    onChange={(enabled) =>
+                      patchBack({
+                        shadow: { ...selected.back.shadow, enabled },
+                      })
+                    }
+                  />
+                  <NumberField label="Blur" value={selected.back.shadow.blur} min={0} max={120} disabled={!selected.back.shadow.enabled} onChange={(blur) => patchBack({ shadow: { ...selected.back.shadow, blur } })} />
+                  <NumberField
+                    label="Opacity"
+                    value={selected.back.shadow.opacity}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    disabled={!selected.back.shadow.enabled}
+                    onChange={(opacity) =>
+                      patchBack({
+                        shadow: { ...selected.back.shadow, opacity },
+                      })
+                    }
+                  />
+                  <NumberField label="Shadow X" value={selected.back.shadow.x} min={-100} max={100} disabled={!selected.back.shadow.enabled} onChange={(x) => patchBack({ shadow: { ...selected.back.shadow, x } })} />
+                  <NumberField label="Shadow Y" value={selected.back.shadow.y} min={-100} max={100} disabled={!selected.back.shadow.enabled} onChange={(y) => patchBack({ shadow: { ...selected.back.shadow, y } })} />
+                </PanelSection>
+              </>
+            )}
+            {tab === "badges" && (
+              <>
+                <PanelSection title="Official Twitch badges">
+                  <div className="badge-palette wide">
+                    {(Object.keys(BADGE_META) as BadgeType[])
+                      .filter((type) => type !== "Custom" && type !== "TikTok")
+                      .map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => addBadge(type)}
+                          style={
+                            {
+                              "--badge": BADGE_META[type].color,
+                            } as React.CSSProperties
+                          }
+                        >
+                          <i>
+                            <BadgePreview type={type} />
+                          </i>
+                          <span>{type}</span>
+                        </button>
+                      ))}
+                  </div>
+                </PanelSection>
+                <PanelSection title="Custom badges">
+                  <Field label="Upload your badge" wide>
+                    <label className="upload-button">
+                      <ImagePlus size={15} />
+                      PNG, WebP or SVG
+                      <input type="file" accept=".png,.webp,.svg,image/png,image/webp,image/svg+xml" onChange={(event) => uploadBadge(event.target.files?.[0])} />
+                    </label>
+                  </Field>
+                </PanelSection>
+                <PanelSection title="Social media">
+                  <div className="badge-palette social-badges wide">
+                    <button
+                      onClick={() => addBadge("TikTok")}
+                      style={
+                        {
+                          "--badge": BADGE_META.TikTok.color,
+                        } as React.CSSProperties
+                      }
+                    >
+                      <i>
+                        <BadgePreview type="TikTok" />
+                      </i>
+                      <span>TikTok</span>
+                    </button>
+                  </div>
+                </PanelSection>
+                <PanelSection title="Badge sizing">
+                  <NumberField label="Size" value={selected.badgeSettings.size} min={8} max={120} onChange={(size) => patchBadgeSettings({ size })} />
+                  <NumberField label="Spacing" value={selected.badgeSettings.spacing} min={0} max={80} onChange={(spacing) => patchBadgeSettings({ spacing })} />
+                </PanelSection>
+                <PanelSection title={`Active badges · ${selected.badges.length}`}>
+                  <div className="active-badges wide">
+                    {selected.badges.length === 0 ? (
+                      <p>No badges yet. Add one above.</p>
+                    ) : (
+                      selected.badges.map((badge, index) => (
+                        <div key={badge.id} draggable onDragStart={(event) => event.dataTransfer.setData("text/badge", String(index))} onDragOver={(event) => event.preventDefault()} onDrop={(event) => reorderBadge(Number(event.dataTransfer.getData("text/badge")), index)}>
+                          <GripVertical size={13} />
+                          <i style={{ background: BADGE_META[badge.type].color }}>{badge.customDataUrl ? <img src={badge.customDataUrl} alt="" /> : <BadgePreview type={badge.type} />}</i>
+                          <span>{badge.label}</span>
+                          <button onClick={() => updateBadge(badge.id, { visible: !badge.visible })}>{badge.visible ? <Eye size={13} /> : <EyeOff size={13} />}</button>
+                          <button disabled={index === 0} onClick={() => reorderBadge(index, index - 1)}>
+                            ↑
+                          </button>
+                          <button disabled={index === selected.badges.length - 1} onClick={() => reorderBadge(index, index + 1)}>
+                            ↓
+                          </button>
+                          <button className="danger" onClick={() => removeBadge(badge.id)}>
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </PanelSection>
+              </>
+            )}
+            {tab === "transform" && (
+              <>
+                <PanelSection title="Message transform">
+                  {project.canvas.previewMode === "message" ? (
+                    <div className="locked-position wide">
+                      <b>Solo mensaje siempre centrado</b>
+                      <span>Cambia a Canvas completo para arrastrar el mensaje o definir una posición.</span>
+                    </div>
+                  ) : (
+                    <>
+                      <NumberField
+                        label="X"
+                        value={selected.transform.x}
+                        min={0}
+                        max={project.canvas.width}
+                        onChange={(x) =>
+                          patchSelected({
+                            transform: { ...selected.transform, x },
+                          })
+                        }
+                      />
+                      <NumberField
+                        label="Y"
+                        value={selected.transform.y}
+                        min={0}
+                        max={project.canvas.height}
+                        onChange={(y) =>
+                          patchSelected({
+                            transform: { ...selected.transform, y },
+                          })
+                        }
+                      />
+                      <button className="secondary wide" onClick={centerSelected}>
+                        Centrar automáticamente en canvas
+                      </button>
+                    </>
+                  )}
+                  <NumberField
+                    label="Scale"
+                    value={selected.transform.scale}
+                    min={0.1}
+                    max={8}
+                    step={0.05}
+                    onChange={(scale) =>
+                      patchSelected({
+                        transform: { ...selected.transform, scale },
+                      })
+                    }
+                  />
+                  <NumberField
+                    label="Rotation"
+                    value={selected.transform.rotation}
+                    min={-360}
+                    max={360}
+                    onChange={(rotation) =>
+                      patchSelected({
+                        transform: { ...selected.transform, rotation },
+                      })
+                    }
+                  />
+                  <button
+                    className="secondary wide"
+                    onClick={() =>
+                      patchSelected({
+                        transform: {
+                          ...selected.transform,
+                          scale: 1,
+                          rotation: 0,
+                        },
+                      })
+                    }
+                  >
+                    <RotateCcw size={13} />
+                    Reset scale and rotation
+                  </button>
+                </PanelSection>
+                <PanelSection title="Randomize style">
+                  <Toggle
+                    label="Username color"
+                    checked={project.randomize.usernameColor}
+                    onChange={(usernameColor) =>
+                      dispatch({
+                        type: "project",
+                        patch: {
+                          randomize: { ...project.randomize, usernameColor },
+                        },
+                      })
+                    }
+                  />
+                  <Toggle
+                    label="Back card color"
+                    checked={project.randomize.backCardColor}
+                    onChange={(backCardColor) =>
+                      dispatch({
+                        type: "project",
+                        patch: {
+                          randomize: { ...project.randomize, backCardColor },
+                        },
+                      })
+                    }
+                  />
+                  <Toggle
+                    label="Card offset"
+                    checked={project.randomize.cardOffset}
+                    onChange={(cardOffset) =>
+                      dispatch({
+                        type: "project",
+                        patch: {
+                          randomize: { ...project.randomize, cardOffset },
+                        },
+                      })
+                    }
+                  />
+                  <Toggle
+                    label="Border radius"
+                    checked={project.randomize.borderRadius}
+                    onChange={(borderRadius) =>
+                      dispatch({
+                        type: "project",
+                        patch: {
+                          randomize: { ...project.randomize, borderRadius },
+                        },
+                      })
+                    }
+                  />
+                  <button className="secondary wide" onClick={randomizeStyle}>
+                    <Shuffle size={13} />
+                    Randomize selected properties
+                  </button>
+                </PanelSection>
+              </>
+            )}
+            {tab === "animation" && (
+              <>
+                <PanelSection title="Animation style">
+                  <div className="animation-grid wide">
+                    {ANIMATION_TYPES.map((type) => (
+                      <button key={type} className={selected.animation.type === type ? "active" : ""} onClick={() => patchAnimation({ type })}>
+                        <i aria-hidden="true" className={`animation-glyph animation-${type}`} />
+                        <span>{ANIMATION_LABELS[type]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </PanelSection>
+                <PanelSection title="Timing & motion">
+                  <NumberField label="Duration (seconds)" value={selected.animation.duration} min={0.5} max={12} step={0.1} onChange={(duration) => patchAnimation({ duration })} />
+                  <NumberField label="Start delay (seconds)" value={selected.animation.delay} min={0} max={5} step={0.1} onChange={(delay) => patchAnimation({ delay })} />
+                  <NumberField label="Intensity" value={selected.animation.intensity} min={0.25} max={2.5} step={0.05} onChange={(intensity) => patchAnimation({ intensity })} />
+                  <Toggle label="Loop preview" checked={selected.animation.loopPreview} onChange={(loopPreview) => patchAnimation({ loopPreview })} />
+                  <button className={isAnimationPlaying ? "animation-preview stop wide" : "animation-preview wide"} onClick={previewAnimation}>
+                    {isAnimationPlaying ? "Stop preview" : "Play animation preview"}
+                  </button>
+                </PanelSection>
+                <PanelSection title="Animated video output">
+                  <div className="video-output-note wide">
+                    <b>Selected message only</b>
+                    <span>The canvas is automatically cropped around the animated card. No 1920×1080 frame is exported.</span>
+                  </div>
+                  <Field label="Format">
+                    <select
+                      value={selected.animation.format}
+                      onChange={(event) =>
+                        patchAnimation({
+                          format: event.target.value as VideoFormat,
+                        })
+                      }
+                    >
+                      <option value="mp4">MP4</option>
+                      <option value="mov">MOV</option>
+                    </select>
+                  </Field>
+                  <Field label="Frame rate">
+                    <select
+                      value={selected.animation.fps}
+                      onChange={(event) =>
+                        patchAnimation({
+                          fps: Number(event.target.value) as 30 | 60,
+                        })
+                      }
+                    >
+                      <option value="30">30 FPS</option>
+                      <option value="60">60 FPS</option>
+                    </select>
+                  </Field>
+                  <Field label="Resolution">
+                    <select
+                      value={selected.animation.quality}
+                      onChange={(event) =>
+                        patchAnimation({
+                          quality: Number(event.target.value) as 1 | 2,
+                        })
+                      }
+                    >
+                      <option value="1">High · 1×</option>
+                      <option value="2">Maximum · 2×</option>
+                    </select>
+                  </Field>
+                  <NumberField label="Crop padding" value={selected.animation.padding} min={0} max={300} onChange={(padding) => patchAnimation({ padding })} />
+                  <ColorField label="Video background" value={selected.animation.backgroundColor} onChange={(backgroundColor) => patchAnimation({ backgroundColor })} />
+                  <div className="video-background-help wide">MP4 and MOV use a solid background for maximum player compatibility. This color is included in the video.</div>
+                  <button className="export-main video-export wide" disabled={isVideoExporting} onClick={exportAnimatedVideo}>
+                    <Download size={16} />
+                    {isVideoExporting ? "Creating video…" : `Export animated ${selected.animation.format.toUpperCase()}`}
+                  </button>
+                  {videoExportStatus ? (
+                    <div className="video-status wide">
+                      <div>
+                        <span>{videoExportStatus}</span>
+                        <b>{videoExportProgress}%</b>
+                      </div>
+                      <i>
+                        <em style={{ width: `${videoExportProgress}%` }} />
+                      </i>
+                    </div>
+                  ) : null}
+                  <div className="video-local-note wide">Processed locally in your browser. The first export downloads the FFmpeg conversion engine (about 31 MB).</div>
+                </PanelSection>
+              </>
+            )}
+            {tab === "export" && (
+              <>
+                <PanelSection title="Export mode">
+                  <button
+                    className={project.export.mode === "full" ? "export-choice active wide" : "export-choice wide"}
+                    onClick={() =>
+                      dispatch({
+                        type: "project",
+                        patch: { export: { ...project.export, mode: "full" } },
+                      })
+                    }
+                  >
+                    <Layers3 size={17} />
+                    <span>
+                      <b>Full canvas PNG</b>
+                      <small>
+                        {project.canvas.width} × {project.canvas.height}, transparent
+                      </small>
+                    </span>
+                  </button>
+                  <button
+                    className={project.export.mode === "message" ? "export-choice active wide" : "export-choice wide"}
+                    onClick={() =>
+                      dispatch({
+                        type: "project",
+                        patch: {
+                          export: { ...project.export, mode: "message" },
+                        },
+                      })
+                    }
+                  >
+                    <Sparkles size={17} />
+                    <span>
+                      <b>Message only PNG</b>
+                      <small>Transparent and trimmed to the selected card</small>
+                    </span>
+                  </button>
+                </PanelSection>
+                <PanelSection title="Preview background · never exported">
+                  <div className="background-preset-grid wide">
+                    {(["white", "black", "checker", "chroma", "transparent", "custom"] as const).map((preset) => (
+                      <button
+                        key={preset}
+                        className={project.canvas.previewBackgroundPreset === preset ? `active bg-${preset}` : `bg-${preset}`}
+                        onClick={() =>
+                          dispatch({
+                            type: "project",
+                            patch: {
+                              canvas: {
+                                ...project.canvas,
+                                previewBackgroundPreset: preset,
+                              },
+                            },
+                          })
+                        }
+                      >
+                        {
+                          {
+                            white: "White",
+                            black: "Black",
+                            checker: "Checker",
+                            chroma: "Chroma",
+                            transparent: "Transparent",
+                            custom: "Custom",
+                          }[preset]
+                        }
+                      </button>
+                    ))}
+                  </div>
+                  {project.canvas.previewBackgroundPreset === "custom" ? (
+                    <ColorField
+                      label="Custom preview color"
+                      value={project.canvas.previewBackgroundColor}
+                      onChange={(previewBackgroundColor) =>
+                        dispatch({
+                          type: "project",
+                          patch: {
+                            canvas: {
+                              ...project.canvas,
+                              previewBackgroundColor,
+                            },
+                          },
+                        })
+                      }
+                    />
+                  ) : null}
+                  <NumberField
+                    label="Preview padding"
+                    value={project.canvas.previewPadding}
+                    min={0}
+                    max={400}
+                    onChange={(previewPadding) =>
+                      dispatch({
+                        type: "project",
+                        patch: {
+                          canvas: { ...project.canvas, previewPadding },
+                        },
+                      })
+                    }
+                  />
+                </PanelSection>
+                <PanelSection title="Output settings">
+                  <NumberField
+                    label="Transparent padding"
+                    value={project.export.padding}
+                    min={0}
+                    max={300}
+                    onChange={(padding) =>
+                      dispatch({
+                        type: "project",
+                        patch: { export: { ...project.export, padding } },
+                      })
+                    }
+                  />
+                  <span className="size-readout">
+                    Quality <b>Maximum · PNG · 4×</b>
+                  </span>
+                  <button className="export-main wide" onClick={() => downloadPng()}>
+                    <Download size={16} />
+                    Export transparent {project.export.mode === "full" ? "full canvas" : "message only"} PNG · 4×
+                  </button>
+                </PanelSection>
+                <PanelSection title="Project">
+                  <button className="reset-button wide" onClick={resetProject}>
+                    <RotateCcw size={14} />
+                    Reset project
+                  </button>
+                </PanelSection>
+              </>
+            )}
+          </div>
+        </aside>
+      </div>
+      {toast ? <div className="toast">{toast}</div> : null}
+    </main>
+  );
 }

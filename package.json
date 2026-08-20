@@ -16,6 +16,8 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "cross-env": "^10.1.0",
     "drizzle-orm": "0.45.2",
     "konva": "^10.3.1",
