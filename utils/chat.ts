@@ -289,26 +289,59 @@ export interface CaptionTextLayout {
   lineCount: number;
 }
 
+export interface FlowTextMetrics {
+  firstLineHeight: number;
+  usernameLineHeight: number;
+  messageLineHeight: number;
+  usernameOffsetY: number;
+  messageOffsetY: number;
+  continuationOffsetY: number;
+}
+
+function takeTextLine(text: string, maxWidth: number, fontSize: number, weight: number): [string, string] {
+  const newlineIndex = text.indexOf("\n");
+  const candidate = newlineIndex >= 0 ? text.slice(0, newlineIndex) : text;
+  if (measureText(candidate, fontSize, weight) <= maxWidth) {
+    return [candidate.trimEnd(), newlineIndex >= 0 ? text.slice(newlineIndex + 1) : ""];
+  }
+
+  let lastSpace = -1;
+  let end = 0;
+  for (let index = 1; index <= candidate.length; index += 1) {
+    if (/\s/.test(candidate[index - 1])) lastSpace = index - 1;
+    if (measureText(candidate.slice(0, index), fontSize, weight) > maxWidth) break;
+    end = index;
+  }
+  const splitAt = lastSpace > 0 && lastSpace <= end ? lastSpace : Math.max(1, end);
+  return [candidate.slice(0, splitAt).trimEnd(), `${candidate.slice(splitAt).trimStart()}${newlineIndex >= 0 ? `\n${text.slice(newlineIndex + 1)}` : ""}`];
+}
+
 function wrapTextLines(text: string, maxWidth: number, fontSize: number, weight: number) {
   if (!text.trim()) return [];
   const lines: string[] = [];
-  for (const paragraph of text.split("\n")) {
-    const words = paragraph.trim().split(/\s+/).filter(Boolean);
-    if (!words.length) {
-      lines.push("");
-      continue;
-    }
-    let line = "";
-    for (const word of words) {
-      const candidate = line ? `${line} ${word}` : word;
-      if (line && measureText(candidate, fontSize, weight) > maxWidth) {
-        lines.push(line);
-        line = word;
-      } else line = candidate;
-    }
-    if (line) lines.push(line);
+  let remaining = text.trim();
+  while (remaining) {
+    const [line, rest] = takeTextLine(remaining, maxWidth, fontSize, weight);
+    lines.push(line);
+    if (rest === remaining) break;
+    remaining = rest.trimStart();
   }
   return lines;
+}
+
+export function calculateFlowTextMetrics(chat: ChatMessage): FlowTextMetrics {
+  const visibleBadges = chat.badges.some((badge) => badge.visible);
+  const usernameLineHeight = chat.content.usernameFontSize * chat.content.lineHeight;
+  const messageLineHeight = chat.content.messageFontSize * chat.content.lineHeight;
+  const firstLineHeight = Math.max(visibleBadges ? chat.badgeSettings.size : 0, usernameLineHeight, messageLineHeight);
+  return {
+    firstLineHeight,
+    usernameLineHeight,
+    messageLineHeight,
+    usernameOffsetY: (firstLineHeight - usernameLineHeight) / 2,
+    messageOffsetY: (firstLineHeight - messageLineHeight) / 2,
+    continuationOffsetY: firstLineHeight,
+  };
 }
 
 export function calculateCaptionText(chat: ChatMessage, maxWidth: number, messageOverride?: string): CaptionTextLayout {
@@ -319,16 +352,9 @@ export function calculateCaptionText(chat: ChatMessage, maxWidth: number, messag
   const badgeLead = visibleBadges ? badgesWidth + chat.content.badgeUsernameSpacing : 0;
   const prefixWidth = measureText(`${username}: `, chat.content.usernameFontSize, chat.content.usernameWeight);
   const firstLineWidth = Math.max(20, maxWidth - badgeLead - prefixWidth);
-  const words = message.trim().split(/\s+/).filter(Boolean);
-  const firstWords: string[] = [];
-  while (words.length) {
-    const candidate = [...firstWords, words[0]].join(" ");
-    if (firstWords.length && measureText(candidate, chat.content.messageFontSize, chat.content.messageWeight) > firstLineWidth) break;
-    if (!firstWords.length && measureText(candidate, chat.content.messageFontSize, chat.content.messageWeight) > firstLineWidth) break;
-    firstWords.push(words.shift()!);
-  }
-  const remainingLines = wrapTextLines(words.join(" "), maxWidth, chat.content.messageFontSize, chat.content.messageWeight);
-  return { prefixWidth, firstLine: firstWords.join(" "), remainingLines, lineCount: 1 + remainingLines.length };
+  const [firstLine, remaining] = takeTextLine(message.trim(), firstLineWidth, chat.content.messageFontSize, chat.content.messageWeight);
+  const remainingLines = wrapTextLines(remaining, maxWidth, chat.content.messageFontSize, chat.content.messageWeight);
+  return { prefixWidth, firstLine, remainingLines, lineCount: 1 + remainingLines.length };
 }
 
 export function calculateLayout(chat: ChatMessage): ChatLayout {
@@ -339,17 +365,17 @@ export function calculateLayout(chat: ChatMessage): ChatLayout {
   const badgeLead = visibleBadges ? badgesWidth + chat.content.badgeUsernameSpacing : 0;
   const usernameWidth = measureText(displayUsername, chat.content.usernameFontSize, chat.content.usernameWeight);
   const captionPrefixWidth = measureText(`${displayUsername}: `, chat.content.usernameFontSize, chat.content.usernameWeight);
-  const headerHeight = Math.max(visibleBadges ? chat.badgeSettings.size : 0, chat.content.usernameFontSize * 1.15, chat.content.layout === "caption" ? chat.content.messageFontSize * chat.content.lineHeight : 0);
+  const flowMetrics = calculateFlowTextMetrics(chat);
+  const headerHeight = chat.content.layout === "stacked" ? Math.max(visibleBadges ? chat.badgeSettings.size : 0, flowMetrics.usernameLineHeight) : flowMetrics.firstLineHeight;
   const messageNatural = measureText(displayMessage, chat.content.messageFontSize, chat.content.messageWeight);
-  const desiredContent = chat.content.layout === "stacked" ? Math.max(badgeLead + usernameWidth, Math.min(messageNatural, chat.content.messageMaxWidth)) : chat.content.layout === "caption" ? badgeLead + Math.min(captionPrefixWidth + messageNatural, chat.content.messageMaxWidth) : badgeLead + usernameWidth + measureText(": ", chat.content.usernameFontSize, chat.content.usernameWeight) + Math.min(messageNatural, chat.content.messageMaxWidth);
+  const desiredContent = chat.content.layout === "stacked" ? Math.max(badgeLead + usernameWidth, Math.min(messageNatural, chat.content.messageMaxWidth)) : badgeLead + Math.min(captionPrefixWidth + messageNatural, chat.content.messageMaxWidth);
   const autoWidth = clamp(desiredContent + chat.front.paddingX * 2, chat.front.minWidth, chat.front.maxWidth);
   const width = chat.front.autoSize ? autoWidth : chat.front.width;
   const contentWidth = Math.max(20, width - chat.front.paddingX * 2);
-  const inlineLead = chat.content.layout === "inline" ? badgeLead + usernameWidth + measureText(": ", chat.content.usernameFontSize, chat.content.usernameWeight) : chat.content.layout === "caption" ? badgeLead : 0;
-  const messageWidth = Math.max(20, Math.min(chat.content.messageMaxWidth, contentWidth - inlineLead));
-  const messageLines = chat.content.layout === "caption" ? calculateCaptionText(chat, contentWidth).lineCount : wrappedLineCount(displayMessage, messageWidth, chat.content.messageFontSize, chat.content.messageWeight);
+  const messageWidth = Math.max(20, Math.min(chat.content.messageMaxWidth, contentWidth));
+  const messageLines = chat.content.layout === "stacked" ? wrappedLineCount(displayMessage, messageWidth, chat.content.messageFontSize, chat.content.messageWeight) : calculateCaptionText(chat, contentWidth).lineCount;
   const messageHeight = messageLines * chat.content.messageFontSize * chat.content.lineHeight;
-  const naturalHeight = chat.front.paddingY * 2 + (chat.content.layout === "stacked" ? headerHeight + chat.content.usernameMessageSpacing + messageHeight : Math.max(headerHeight, messageHeight));
+  const naturalHeight = chat.front.paddingY * 2 + (chat.content.layout === "stacked" ? headerHeight + chat.content.usernameMessageSpacing + messageHeight : headerHeight + Math.max(0, messageLines - 1) * flowMetrics.messageLineHeight);
   const height = chat.front.autoSize ? Math.max(chat.front.height, Math.ceil(naturalHeight)) : chat.front.height;
   const backWidth = (chat.back.matchFrontSize ? width : chat.back.width) + chat.back.widthAdjustment;
   const backHeight = (chat.back.matchFrontSize ? height : chat.back.height) + chat.back.heightAdjustment;

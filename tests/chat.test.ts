@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPreset, calculateCaptionText, calculateLayout, contrastRatio, copyStyle, createMessage, createProject, pasteStyle, randomMatchingPalette, randomUsernameColor } from "../utils/chat";
+import { applyPreset, calculateCaptionText, calculateFlowTextMetrics, calculateLayout, contrastRatio, copyStyle, createMessage, createProject, pasteStyle, randomMatchingPalette, randomUsernameColor } from "../utils/chat";
 import { animationFrame, animationTotalMs } from "../utils/animation";
 
 describe("reference layout", () => {
@@ -74,6 +74,28 @@ describe("styles and project state", () => {
     const regularPrefix = calculateCaptionText(chat, 840).prefixWidth;
     expect(chat.content.messageWeight).toBe(400);
     expect(boldPrefix).toBeGreaterThan(regularPrefix);
+  });
+  it("aligns caption username and message on the same first-line center", () => {
+    const chat = applyPreset(createMessage(), "Bold Caption");
+    chat.content.usernameFontSize = 34;
+    chat.content.messageFontSize = 22;
+    const metrics = calculateFlowTextMetrics(chat);
+    const usernameCenter = metrics.usernameOffsetY + metrics.usernameLineHeight / 2;
+    const messageCenter = metrics.messageOffsetY + metrics.messageLineHeight / 2;
+    expect(usernameCenter).toBeCloseTo(messageCenter);
+  });
+  it("wraps inline continuation lines at the full card margin", () => {
+    const chat = createMessage();
+    chat.content.layout = "inline";
+    chat.front.maxWidth = 420;
+    chat.content.messageMaxWidth = 350;
+    chat.message = `Hola soy ${"s".repeat(90)}`;
+    const layout = calculateLayout(chat);
+    const flow = calculateCaptionText(chat, layout.contentWidth);
+    expect(flow.remainingLines.length).toBeGreaterThan(1);
+    expect(flow.remainingLines.every((line) => line.length > 0)).toBe(true);
+    expect(layout.height).toBeGreaterThan(89);
+    expect(layout.overflow).toBe(false);
   });
   it("creates a versioned local project", () => {
     const project = createProject();

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type Konva from "konva";
 import { Circle, Group, Image as KonvaImage, Layer, Path, Rect, Stage, Text, Transformer } from "react-konva";
 import type { AnimationType, BackGradientType, BadgeInstance, BadgeType, ChatMessage, ChatProject, FontChoice, InspectorTab, StylePresetName, VideoFormat } from "../types/chat";
-import { applyPreset, BADGE_META, calculateCaptionText, calculateLayout, copyStyle, createMessage, createProject, loadProject, pasteStyle, randomMatchingPalette, randomUsernameColor, safeFilename, sanitizeSvg, STORAGE_KEY, uid } from "../utils/chat";
+import { applyPreset, BADGE_META, calculateCaptionText, calculateFlowTextMetrics, calculateLayout, copyStyle, createMessage, createProject, loadProject, pasteStyle, randomMatchingPalette, randomUsernameColor, safeFilename, sanitizeSvg, STORAGE_KEY, uid } from "../utils/chat";
 import { animationFrame, animationTotalMs } from "../utils/animation";
 
 type IconProps = { size?: number; className?: string };
@@ -342,18 +342,17 @@ function ChatCard({ chat, selected, locked, onSelect, onPatch, register }: { cha
   const backX = chat.back.offsetX + (layout.width - layout.backWidth) / 2;
   const backY = chat.back.offsetY + (layout.height - layout.backHeight) / 2;
   const headerY = chat.front.paddingY;
-  const usernameY = headerY + (layout.headerHeight - chat.content.usernameFontSize * 1.15) / 2;
+  const flowMetrics = calculateFlowTextMetrics(chat);
+  const usernameY = headerY + (layout.headerHeight - flowMetrics.usernameLineHeight) / 2;
   const usernameX = chat.front.paddingX + badgeLead;
   const messageY = chat.content.layout === "stacked" ? headerY + layout.headerHeight + chat.content.usernameMessageSpacing : headerY;
-  const inlineMessageX = usernameX + layout.usernameWidth + chat.content.usernameFontSize * 0.5;
-  const messageWidth = chat.content.layout === "stacked" ? layout.contentWidth : Math.max(20, layout.contentWidth - (inlineMessageX - chat.front.paddingX));
   const shadow = chat.front.shadow;
   const backShadow = chat.back.shadow;
   const fontFamily = chat.content.fontFamily === "Roobert" ? "Roobert, Inter, Arial, sans-serif" : `${chat.content.fontFamily}, Roobert, Inter, Arial, sans-serif`;
   const gradientTexture = useGradientTexture(chat.back, layout.backWidth, layout.backHeight);
-  const captionLayout = calculateCaptionText(chat, layout.contentWidth);
-  const captionLineStep = chat.content.messageFontSize * chat.content.lineHeight;
-  const captionUsernameY = headerY + Math.max(0, (captionLineStep - chat.content.usernameFontSize * 1.15) / 2);
+  const flowLayout = calculateCaptionText(chat, layout.contentWidth);
+  const flowUsernameY = headerY + flowMetrics.usernameOffsetY;
+  const flowMessageY = headerY + flowMetrics.messageOffsetY;
   return (
     <Group
       ref={register}
@@ -399,16 +398,16 @@ function ChatCard({ chat, selected, locked, onSelect, onPatch, register }: { cha
         {visibleBadges.map((badge, index) => (
           <BadgeNode key={badge.id} badge={badge} x={chat.front.paddingX + index * (chat.badgeSettings.size + chat.badgeSettings.spacing)} y={headerY + (layout.headerHeight - chat.badgeSettings.size) / 2} size={chat.badgeSettings.size} />
         ))}
-        {chat.content.layout === "caption" ? (
+        {chat.content.layout !== "stacked" ? (
           <>
-            <Text name="caption-username" x={usernameX} y={captionUsernameY} text={`${previewUsername}:`} fill={chat.content.usernameColor} fontFamily={fontFamily} fontStyle={chat.content.usernameWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.usernameFontSize} />
-            <Text name="caption-message-first" x={usernameX + captionLayout.prefixWidth} y={headerY} width={Math.max(20, layout.contentWidth - badgeLead - captionLayout.prefixWidth)} text={captionLayout.firstLine} fill={chat.content.messageColor} fontFamily={fontFamily} fontStyle={chat.content.messageWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.messageFontSize} lineHeight={chat.content.lineHeight} wrap="none" />
-            <Text name="caption-message-rest" x={chat.front.paddingX} y={headerY + captionLineStep} width={layout.contentWidth} text={captionLayout.remainingLines.join("\n")} fill={chat.content.messageColor} fontFamily={fontFamily} fontStyle={chat.content.messageWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.messageFontSize} lineHeight={chat.content.lineHeight} align={chat.content.textAlign} wrap="none" />
+            <Text name="flow-username" x={usernameX} y={flowUsernameY} text={`${previewUsername}:`} fill={chat.content.usernameColor} fontFamily={fontFamily} fontStyle={chat.content.usernameWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.usernameFontSize} lineHeight={chat.content.lineHeight} />
+            <Text name="flow-message-first" x={usernameX + flowLayout.prefixWidth} y={flowMessageY} width={Math.max(20, layout.contentWidth - badgeLead - flowLayout.prefixWidth)} text={flowLayout.firstLine} fill={chat.content.messageColor} fontFamily={fontFamily} fontStyle={chat.content.messageWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.messageFontSize} lineHeight={chat.content.lineHeight} wrap="none" />
+            <Text name="flow-message-rest" x={chat.front.paddingX} y={headerY + flowMetrics.continuationOffsetY} width={layout.contentWidth} text={flowLayout.remainingLines.join("\n")} fill={chat.content.messageColor} fontFamily={fontFamily} fontStyle={chat.content.messageWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.messageFontSize} lineHeight={chat.content.lineHeight} align={chat.content.textAlign} wrap="none" />
           </>
         ) : (
           <>
-            <Text name="username-text" x={usernameX} y={usernameY} text={chat.content.layout === "inline" ? `${previewUsername}:` : previewUsername} fill={chat.content.usernameColor} fontFamily={fontFamily} fontStyle={chat.content.usernameWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.usernameFontSize} />
-            <Text name="message-text" x={chat.content.layout === "stacked" ? chat.front.paddingX : inlineMessageX} y={messageY} width={messageWidth} text={previewMessage} fill={chat.content.messageColor} fontFamily={fontFamily} fontStyle={chat.content.messageWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.messageFontSize} lineHeight={chat.content.lineHeight} align={chat.content.textAlign} wrap="word" />
+            <Text name="username-text" x={usernameX} y={usernameY} text={previewUsername} fill={chat.content.usernameColor} fontFamily={fontFamily} fontStyle={chat.content.usernameWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.usernameFontSize} lineHeight={chat.content.lineHeight} />
+            <Text name="message-text" x={chat.front.paddingX} y={messageY} width={layout.contentWidth} text={previewMessage} fill={chat.content.messageColor} fontFamily={fontFamily} fontStyle={chat.content.messageWeight >= 700 ? "bold" : "normal"} fontSize={chat.content.messageFontSize} lineHeight={chat.content.lineHeight} align={chat.content.textAlign} wrap="word" />
           </>
         )}
       </Group>
@@ -827,11 +826,11 @@ export default function TwitchEditor() {
   const renderTypedMessage = (node: Konva.Group, chat: ChatMessage, typedProgress: number) => {
     const fullMessage = chat.message || "Ingresa lo que quieras decir";
     const typedMessage = fullMessage.slice(0, Math.ceil(fullMessage.length * typedProgress));
-    if (chat.content.layout === "caption") {
+    if (chat.content.layout !== "stacked") {
       const layout = calculateLayout(chat);
       const caption = calculateCaptionText(chat, layout.contentWidth, typedMessage);
-      (node.findOne(".caption-message-first") as Konva.Text | undefined)?.text(caption.firstLine);
-      (node.findOne(".caption-message-rest") as Konva.Text | undefined)?.text(caption.remainingLines.join("\n"));
+      (node.findOne(".flow-message-first") as Konva.Text | undefined)?.text(caption.firstLine);
+      (node.findOne(".flow-message-rest") as Konva.Text | undefined)?.text(caption.remainingLines.join("\n"));
     } else (node.findOne(".message-text") as Konva.Text | undefined)?.text(typedMessage);
   };
 
