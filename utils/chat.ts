@@ -4,7 +4,17 @@ export const STORAGE_KEY = "twitch-chat-card-generator:v2";
 export const USERNAME_COLORS = ["#FF7A7A", "#FFB86C", "#FFD866", "#A8E063", "#50FA7B", "#4DD0E1", "#5C9DFF", "#7A7CFF", "#BD93F9", "#FF79C6", "#FF4FA3"];
 export const BACK_COLORS = ["#70AFFF", "#72E4C0", "#FF8FB8", "#B792FF", "#FFB866", "#68D7F2", "#9EE56B", "#F48BFF"];
 const MATCHING_HUES = [6, 28, 48, 88, 145, 178, 208, 232, 267, 302, 327];
-export const BADGE_META: Record<BadgeType, { short: string; color: string; asset?: string }> = {
+export type BadgeBrand = "kick" | "youtube" | "tiktok";
+export interface BadgeMeta {
+  short: string;
+  color: string;
+  label?: string;
+  foreground?: string;
+  asset?: string;
+  brand?: BadgeBrand;
+}
+
+export const BADGE_META: Record<BadgeType, BadgeMeta> = {
   Broadcaster: {
     short: "BC",
     color: "#E91916",
@@ -22,9 +32,47 @@ export const BADGE_META: Record<BadgeType, { short: string; color: string; asset
   Turbo: { short: "T", color: "#A970FF", asset: "/badges/turbo.png" },
   Artist: { short: "A", color: "#F43F5E", asset: "/badges/artist.png" },
   Staff: { short: "S", color: "#111827", asset: "/badges/staff.png" },
-  TikTok: { short: "♪", color: "#000000" },
+  Kick: { short: "K", color: "#53FC18", foreground: "#071005", brand: "kick" },
+  KickVerified: { short: "✓", color: "#53FC18", label: "Kick Verified", foreground: "#071005" },
+  KickModerator: { short: "M", color: "#53FC18", label: "Kick Moderator", foreground: "#071005" },
+  KickVIP: { short: "VIP", color: "#53FC18", label: "Kick VIP", foreground: "#071005" },
+  KickOG: { short: "OG", color: "#53FC18", label: "Kick OG", foreground: "#071005" },
+  KickSubscriber: { short: "SUB", color: "#53FC18", label: "Kick Subscriber", foreground: "#071005" },
+  YouTube: { short: "YT", color: "#FF0000", brand: "youtube" },
+  YouTubeVerified: { short: "✓", color: "#FF0000", label: "YouTube Verified" },
+  YouTubeModerator: { short: "M", color: "#5F84F1", label: "YouTube Moderator" },
+  YouTubeMember: { short: "★", color: "#0F9D58", label: "YouTube Member" },
+  YouTubeTopFan: { short: "#1", color: "#FFB300", label: "YouTube Top fan", foreground: "#251800" },
+  TikTok: { short: "♪", color: "#000000", brand: "tiktok" },
+  TikTokVerified: { short: "✓", color: "#20D5EC", label: "TikTok Verified", foreground: "#001417" },
+  TikTokModerator: { short: "M", color: "#FE2C55", label: "TikTok Moderator" },
+  TikTokSubscriber: { short: "SUB", color: "#FE2C55", label: "TikTok LIVE subscriber" },
+  TikTokFanClub: { short: "♥", color: "#20D5EC", label: "TikTok Fan Club", foreground: "#001417" },
   Custom: { short: "★", color: "#64748B" },
 };
+
+export const BADGE_SECTIONS: ReadonlyArray<{ id: BadgeBrand | "twitch"; title: string; types: readonly BadgeType[] }> = [
+  {
+    id: "twitch",
+    title: "Official Twitch badges",
+    types: ["Broadcaster", "Moderator", "VIP", "Subscriber", "Founder", "Prime", "Turbo", "Artist", "Staff"],
+  },
+  {
+    id: "kick",
+    title: "Kick badges",
+    types: ["Kick", "KickVerified", "KickModerator", "KickVIP", "KickOG", "KickSubscriber"],
+  },
+  {
+    id: "youtube",
+    title: "YouTube badges",
+    types: ["YouTube", "YouTubeVerified", "YouTubeModerator", "YouTubeMember", "YouTubeTopFan"],
+  },
+  {
+    id: "tiktok",
+    title: "TikTok badges",
+    types: ["TikTok", "TikTokVerified", "TikTokModerator", "TikTokSubscriber", "TikTokFanClub"],
+  },
+];
 
 export const uid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));

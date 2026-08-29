@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type Konva from "konva";
 import { Circle, Group, Image as KonvaImage, Layer, Path, Rect, Stage, Text, Transformer } from "react-konva";
+import { siKick, siTiktok, siYoutube } from "simple-icons";
 import type { AnimationType, BackGradientType, BadgeInstance, BadgeType, ChatMessage, ChatProject, FontChoice, InspectorTab, StylePresetName, VideoFormat } from "../types/chat";
-import { applyPreset, BADGE_META, calculateCaptionText, calculateFlowTextMetrics, calculateLayout, copyStyle, createMessage, createProject, loadProject, pasteStyle, randomMatchingPalette, randomUsernameColor, safeFilename, sanitizeSvg, STORAGE_KEY, uid } from "../utils/chat";
+import { applyPreset, BADGE_META, BADGE_SECTIONS, calculateCaptionText, calculateFlowTextMetrics, calculateLayout, copyStyle, createMessage, createProject, loadProject, pasteStyle, randomMatchingPalette, randomUsernameColor, safeFilename, sanitizeSvg, STORAGE_KEY, uid } from "../utils/chat";
 import { animationFrame, animationTotalMs } from "../utils/animation";
 
 type IconProps = { size?: number; className?: string };
@@ -31,9 +32,7 @@ const Copy = makeIcon("⧉"),
 const siTwitch = {
   path: "M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z",
 };
-const siTiktok = {
-  path: "M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z",
-};
+const badgeBrandIcons = { kick: siKick, youtube: siYoutube, tiktok: siTiktok } as const;
 
 function BrandIcon({ icon, size = 18, color = "currentColor" }: { icon: { path: string }; size?: number; color?: string }) {
   return (
@@ -46,7 +45,7 @@ function BrandIcon({ icon, size = 18, color = "currentColor" }: { icon: { path: 
 function BadgePreview({ type }: { type: BadgeType }) {
   const meta = BADGE_META[type];
   if (meta.asset) return <img src={meta.asset} alt="" />;
-  if (type === "TikTok") return <BrandIcon icon={siTiktok} size={14} color="#fff" />;
+  if (meta.brand) return <BrandIcon icon={badgeBrandIcons[meta.brand]} size={14} color={meta.foreground ?? "#fff"} />;
   return <>{meta.short}</>;
 }
 
@@ -94,20 +93,21 @@ function BadgeNode({ badge, x, y, size }: { badge: BadgeInstance; x: number; y: 
   const meta = BADGE_META[badge.type];
   const image = useLoadedImage(badge.customDataUrl ?? meta.asset);
   if (image) return <KonvaImage image={image} x={x} y={y} width={size} height={size} cornerRadius={Math.max(2, size * 0.18)} />;
-  if (badge.type === "TikTok") {
+  if (meta.brand) {
     const inner = size * 0.68;
     const scale = inner / 24;
+    const icon = badgeBrandIcons[meta.brand];
     return (
       <Group x={x} y={y}>
-        <Rect width={size} height={size} fill="#050505" cornerRadius={Math.max(3, size * 0.22)} />
-        <Path data={siTiktok.path} fill="#fff" x={(size - inner) / 2} y={(size - inner) / 2} scaleX={scale} scaleY={scale} />
+        <Rect width={size} height={size} fill={meta.color} cornerRadius={Math.max(3, size * 0.22)} />
+        <Path data={icon.path} fill={meta.foreground ?? "#fff"} x={(size - inner) / 2} y={(size - inner) / 2} scaleX={scale} scaleY={scale} />
       </Group>
     );
   }
   return (
     <Group x={x} y={y}>
       <Rect width={size} height={size} fill={meta.color} cornerRadius={Math.max(3, size * 0.22)} />
-      <Text width={size} height={size} text={meta.short} fill="#fff" fontFamily="Roobert, Inter, Arial" fontStyle="bold" fontSize={Math.max(7, size * (meta.short.length > 1 ? 0.36 : 0.52))} align="center" verticalAlign="middle" />
+      <Text width={size} height={size} text={meta.short} fill={meta.foreground ?? "#fff"} fontFamily="Roobert, Inter, Arial" fontStyle="bold" fontSize={Math.max(7, size * (meta.short.length > 1 ? 0.36 : 0.52))} align="center" verticalAlign="middle" />
     </Group>
   );
 }
@@ -708,13 +708,13 @@ export default function TwitchEditor() {
         {
           id: uid(),
           type,
-          label: type,
+          label: meta.label ?? type,
           visible: true,
           ...(type === "Custom" ? {} : {}),
         },
       ],
     });
-    showToast(`${meta.short} badge added`);
+    showToast(`${meta.label ?? type} badge added`);
   };
   const updateBadge = (id: string, patch: Partial<BadgeInstance>) =>
     patchSelected({
@@ -1787,28 +1787,30 @@ export default function TwitchEditor() {
             )}
             {tab === "badges" && (
               <>
-                <PanelSection title="Official Twitch badges">
-                  <div className="badge-palette wide">
-                    {(Object.keys(BADGE_META) as BadgeType[])
-                      .filter((type) => type !== "Custom" && type !== "TikTok")
-                      .map((type) => (
+                {BADGE_SECTIONS.map((section) => (
+                  <PanelSection key={section.id} title={section.title}>
+                    <div className={`badge-palette ${section.id}-badges wide`}>
+                      {section.types.map((type) => (
                         <button
                           key={type}
                           onClick={() => addBadge(type)}
+                          aria-label={`Add ${type} badge`}
                           style={
                             {
                               "--badge": BADGE_META[type].color,
+                              "--badge-foreground": BADGE_META[type].foreground ?? "#fff",
                             } as React.CSSProperties
                           }
                         >
                           <i>
                             <BadgePreview type={type} />
                           </i>
-                          <span>{type}</span>
+                          <span>{BADGE_META[type].label ?? type}</span>
                         </button>
                       ))}
-                  </div>
-                </PanelSection>
+                    </div>
+                  </PanelSection>
+                ))}
                 <PanelSection title="Custom badges">
                   <Field label="Upload your badge" wide>
                     <label className="upload-button">
@@ -1817,23 +1819,6 @@ export default function TwitchEditor() {
                       <input type="file" accept=".png,.webp,.svg,image/png,image/webp,image/svg+xml" onChange={(event) => uploadBadge(event.target.files?.[0])} />
                     </label>
                   </Field>
-                </PanelSection>
-                <PanelSection title="Social media">
-                  <div className="badge-palette social-badges wide">
-                    <button
-                      onClick={() => addBadge("TikTok")}
-                      style={
-                        {
-                          "--badge": BADGE_META.TikTok.color,
-                        } as React.CSSProperties
-                      }
-                    >
-                      <i>
-                        <BadgePreview type="TikTok" />
-                      </i>
-                      <span>TikTok</span>
-                    </button>
-                  </div>
                 </PanelSection>
                 <PanelSection title="Badge sizing">
                   <NumberField label="Size" value={selected.badgeSettings.size} min={8} max={120} onChange={(size) => patchBadgeSettings({ size })} />
@@ -1847,7 +1832,7 @@ export default function TwitchEditor() {
                       selected.badges.map((badge, index) => (
                         <div key={badge.id} draggable onDragStart={(event) => event.dataTransfer.setData("text/badge", String(index))} onDragOver={(event) => event.preventDefault()} onDrop={(event) => reorderBadge(Number(event.dataTransfer.getData("text/badge")), index)}>
                           <GripVertical size={13} />
-                          <i style={{ background: BADGE_META[badge.type].color }}>{badge.customDataUrl ? <img src={badge.customDataUrl} alt="" /> : <BadgePreview type={badge.type} />}</i>
+                          <i style={{ background: BADGE_META[badge.type].color, color: BADGE_META[badge.type].foreground ?? "#fff" }}>{badge.customDataUrl ? <img src={badge.customDataUrl} alt="" /> : <BadgePreview type={badge.type} />}</i>
                           <span>{badge.label}</span>
                           <button onClick={() => updateBadge(badge.id, { visible: !badge.visible })}>{badge.visible ? <Eye size={13} /> : <EyeOff size={13} />}</button>
                           <button disabled={index === 0} onClick={() => reorderBadge(index, index - 1)}>

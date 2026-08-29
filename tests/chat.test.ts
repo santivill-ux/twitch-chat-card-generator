@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPreset, calculateCaptionText, calculateFlowTextMetrics, calculateLayout, contrastRatio, copyStyle, createMessage, createProject, pasteStyle, randomMatchingPalette, randomUsernameColor } from "../utils/chat";
+import { applyPreset, BADGE_META, BADGE_SECTIONS, calculateCaptionText, calculateFlowTextMetrics, calculateLayout, contrastRatio, copyStyle, createMessage, createProject, pasteStyle, randomMatchingPalette, randomUsernameColor } from "../utils/chat";
 import { animationFrame, animationTotalMs } from "../utils/animation";
 
 describe("reference layout", () => {
@@ -106,6 +106,15 @@ describe("styles and project state", () => {
     expect(project.export.scale).toBe(4);
     expect(project.savedPresets).toEqual([]);
     expect(project.messages[0].animation.type).toBe("pop-in-out");
+  });
+  it("organizes Twitch, Kick, YouTube and TikTok badges into separate sections", () => {
+    expect(BADGE_SECTIONS.map((section) => section.id)).toEqual(["twitch", "kick", "youtube", "tiktok"]);
+    const types = BADGE_SECTIONS.flatMap((section) => section.types);
+    expect(new Set(types).size).toBe(types.length);
+    expect(BADGE_SECTIONS.find((section) => section.id === "kick")?.types).toContain("KickSubscriber");
+    expect(BADGE_SECTIONS.find((section) => section.id === "youtube")?.types).toContain("YouTubeMember");
+    expect(BADGE_SECTIONS.find((section) => section.id === "tiktok")?.types).toContain("TikTokFanClub");
+    for (const type of types) expect(BADGE_META[type]).toBeDefined();
   });
   it("generates readable username colors", () => {
     for (let i = 0; i < 30; i++) expect(contrastRatio(randomUsernameColor("#19171C"), "#19171C")).toBeGreaterThanOrEqual(4.5);

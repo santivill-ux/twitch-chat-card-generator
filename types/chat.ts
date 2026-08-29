@@ -9,7 +9,33 @@ export type BackGradientType = "linear" | "radial" | "angular" | "diamond" | "me
 export type AnimationType = "typing" | "pop-in" | "pop-out" | "pop-in-out" | "fade-in" | "fade-out" | "slide-up" | "bounce" | "pulse" | "float" | "shake";
 export type VideoFormat = "mp4" | "mov";
 export type InspectorTab = "content" | "front" | "back" | "badges" | "transform" | "animation" | "export";
-export type BadgeType = "Broadcaster" | "Moderator" | "VIP" | "Subscriber" | "Founder" | "Prime" | "Turbo" | "Artist" | "Staff" | "TikTok" | "Custom";
+export type BadgeType =
+  | "Broadcaster"
+  | "Moderator"
+  | "VIP"
+  | "Subscriber"
+  | "Founder"
+  | "Prime"
+  | "Turbo"
+  | "Artist"
+  | "Staff"
+  | "Kick"
+  | "KickVerified"
+  | "KickModerator"
+  | "KickVIP"
+  | "KickOG"
+  | "KickSubscriber"
+  | "YouTube"
+  | "YouTubeVerified"
+  | "YouTubeModerator"
+  | "YouTubeMember"
+  | "YouTubeTopFan"
+  | "TikTok"
+  | "TikTokVerified"
+  | "TikTokModerator"
+  | "TikTokSubscriber"
+  | "TikTokFanClub"
+  | "Custom";
 
 export interface BorderStyle {
   enabled: boolean;
